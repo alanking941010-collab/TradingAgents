@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE, analyze_option_chain
+from tradingagents.options.contract_specs import contract_multiplier_for_product, multiplier_unit_for_product
 from tradingagents.options.data_loader import format_iso
 from tradingagents.options.models import EnrichedOptionQuote
 
@@ -72,8 +73,16 @@ def _next_lower(strikes: list[float], strike: float) -> float:
     raise ValueError("Cannot find lower strike for spread")
 
 
-def _leg(row: EnrichedOptionQuote, side: str, quantity: int = 1) -> dict[str, Any]:
+def _cash(value: float | None, contract_multiplier: int, digits: int = 4) -> float | None:
+    if value is None:
+        return None
+    return _round(float(value) * contract_multiplier, digits)
+
+
+def _leg(row: EnrichedOptionQuote, side: str, quantity: int = 1, contract_multiplier: int = 1) -> dict[str, Any]:
     greeks = row.greeks
+    price = row.quote.mid_price
+    signed_price = (1 if side == "BUY" else -1) * quantity * float(price or 0.0)
     return {
         "ts_code": row.quote.ts_code,
         "side": side,
@@ -81,8 +90,11 @@ def _leg(row: EnrichedOptionQuote, side: str, quantity: int = 1) -> dict[str, An
         "call_put": row.quote.call_put,
         "strike": row.quote.strike,
         "expiry": row.quote.maturity_date,
-        "price": row.quote.mid_price,
+        "price": price,
         "price_basis": "close" if row.quote.close is not None and row.quote.close > 0 else "settle_fallback",
+        "contract_multiplier": contract_multiplier,
+        "premium_cash": _cash(float(price or 0.0) * quantity, contract_multiplier),
+        "signed_premium_cash": _cash(signed_price, contract_multiplier),
         "implied_volatility": _round(row.implied_volatility),
         "delta": _round(greeks.delta) if greeks else None,
         "gamma": _round(greeks.gamma) if greeks else None,
@@ -124,21 +136,26 @@ def _liquidity(legs: list[dict[str, Any]], min_open_interest: float, min_volume:
     }
 
 
-def _structure_legs(strategy_type: str, rows: list[EnrichedOptionQuote], underlying_price: float) -> list[dict[str, Any]]:
+def _structure_legs(
+    strategy_type: str,
+    rows: list[EnrichedOptionQuote],
+    underlying_price: float,
+    contract_multiplier: int,
+) -> list[dict[str, Any]]:
     strikes = sorted({row.quote.strike for row in rows})
     atm = _nearest_strike(rows, underlying_price)
     if strategy_type == "bull_call_spread":
         upper = _next_higher(strikes, atm)
-        return [_leg(_row_at(rows, "C", atm), "BUY"), _leg(_row_at(rows, "C", upper), "SELL")]
+        return [_leg(_row_at(rows, "C", atm), "BUY", contract_multiplier=contract_multiplier), _leg(_row_at(rows, "C", upper), "SELL", contract_multiplier=contract_multiplier)]
     if strategy_type == "bear_put_spread":
         lower = _next_lower(strikes, atm)
-        return [_leg(_row_at(rows, "P", atm), "BUY"), _leg(_row_at(rows, "P", lower), "SELL")]
+        return [_leg(_row_at(rows, "P", atm), "BUY", contract_multiplier=contract_multiplier), _leg(_row_at(rows, "P", lower), "SELL", contract_multiplier=contract_multiplier)]
     if strategy_type == "long_straddle":
-        return [_leg(_row_at(rows, "C", atm), "BUY"), _leg(_row_at(rows, "P", atm), "BUY")]
+        return [_leg(_row_at(rows, "C", atm), "BUY", contract_multiplier=contract_multiplier), _leg(_row_at(rows, "P", atm), "BUY", contract_multiplier=contract_multiplier)]
     if strategy_type == "long_strangle":
         lower = _next_lower(strikes, atm)
         upper = _next_higher(strikes, atm)
-        return [_leg(_row_at(rows, "C", upper), "BUY"), _leg(_row_at(rows, "P", lower), "BUY")]
+        return [_leg(_row_at(rows, "C", upper), "BUY", contract_multiplier=contract_multiplier), _leg(_row_at(rows, "P", lower), "BUY", contract_multiplier=contract_multiplier)]
     raise ValueError(f"Unsupported strategy_type={strategy_type!r}")
 
 
@@ -171,6 +188,34 @@ def _payoff(strategy_type: str, legs: list[dict[str, Any]], net_premium: float) 
     }
 
 
+def _cash_risk_fields(
+    *,
+    net_premium: float,
+    max_loss: float | None,
+    max_profit: float | None,
+    underlying_price: float,
+    contract_multiplier: int,
+    multiplier_unit: str,
+    risk_budget_cash: float | None,
+) -> dict[str, Any]:
+    net_premium_cash = _cash(net_premium, contract_multiplier)
+    max_loss_cash = _cash(max_loss, contract_multiplier) if max_loss is not None else None
+    max_profit_cash = _cash(max_profit, contract_multiplier) if max_profit is not None else None
+    underlying_notional = _cash(underlying_price, contract_multiplier)
+    return {
+        "contract_multiplier": contract_multiplier,
+        "multiplier_unit": "CNY per option-price point",
+        "underlying_contract_unit": multiplier_unit,
+        "net_premium_cash": net_premium_cash,
+        "max_loss_cash": max_loss_cash,
+        "max_profit_cash": max_profit_cash,
+        "underlying_notional_per_lot": underlying_notional,
+        "max_loss_pct_of_notional": _round(max_loss_cash / underlying_notional, 8) if max_loss_cash is not None and underlying_notional else None,
+        "risk_budget_cash": risk_budget_cash,
+        "max_loss_pct_of_risk_budget": _round(max_loss_cash / risk_budget_cash, 8) if max_loss_cash is not None and risk_budget_cash else None,
+    }
+
+
 def build_option_strategy_candidate(
     symbol: str,
     strategy_type: str,
@@ -179,20 +224,23 @@ def build_option_strategy_candidate(
     risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
     min_open_interest: float = 1000.0,
     min_volume: float = 100.0,
+    risk_budget_cash: float | None = None,
 ) -> dict[str, Any]:
     """Build one deterministic, auditable option strategy candidate.
 
     The output is intended for LLM agents to interpret and risk-manage, not as
-    an execution instruction. Premiums are in option-price points and contract
-    multipliers are not applied.
+    an execution instruction. Premiums are kept in option-price points and also
+    converted to cash values with the SHFE contract multiplier.
     """
     normalized_strategy = (strategy_type or "").strip().lower().replace("-", "_")
     if normalized_strategy not in _SUPPORTED_STRATEGIES:
         raise ValueError(f"Unsupported strategy_type={strategy_type!r}; supported={sorted(_SUPPORTED_STRATEGIES)}")
 
     report = analyze_option_chain(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
+    contract_multiplier = contract_multiplier_for_product(report.product)
+    multiplier_unit = multiplier_unit_for_product(report.product)
     rows = _rows_for_expiry(report.options, expiry)
-    legs = _structure_legs(normalized_strategy, rows, report.underlying_price)
+    legs = _structure_legs(normalized_strategy, rows, report.underlying_price, contract_multiplier)
     net = _round(_net_premium(legs), 4) or 0.0
     payoff = _payoff(normalized_strategy, legs, net)
     maturity = legs[0]["expiry"] if legs else None
@@ -205,18 +253,29 @@ def build_option_strategy_candidate(
         "expiry": maturity,
         "price_basis": "option close + futures close",
         "risk_free_rate": risk_free_rate,
+        "contract_multiplier": contract_multiplier,
         "legs": legs,
         "net_premium": net,
         "premium_type": "debit" if net > 0 else "credit" if net < 0 else "zero-cost",
         "max_loss": payoff["max_loss"],
         "max_profit": payoff["max_profit"],
         "breakevens": payoff["breakevens"],
+        "cash_risk": _cash_risk_fields(
+            net_premium=net,
+            max_loss=payoff["max_loss"],
+            max_profit=payoff["max_profit"],
+            underlying_price=report.underlying_price,
+            contract_multiplier=contract_multiplier,
+            multiplier_unit=multiplier_unit,
+            risk_budget_cash=risk_budget_cash,
+        ),
         "greeks": _net_greeks(legs),
         "liquidity": _liquidity(legs, min_open_interest, min_volume),
         "assumptions": {
             "model": "Black-76 futures option model",
             "price_basis": "option close + futures close",
-            "contract_multiplier_applied": False,
+            "contract_multiplier_applied": True,
+            "contract_multiplier_source": "static SHFE futures contract specification mapping",
             "execution_note": "Candidate is analytical only; verify live bid/ask, margin, and exchange rules before trading.",
         },
     }

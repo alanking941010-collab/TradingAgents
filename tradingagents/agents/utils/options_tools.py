@@ -213,10 +213,17 @@ def get_option_strategy_candidate(
     strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle"],
     trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
+    risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY for max-loss utilization"] = None,
 ) -> str:
-    """Return a structured option strategy candidate JSON with legs/payoff/Greeks/liquidity."""
+    """Return a structured option strategy candidate JSON with legs/payoff/Greeks/liquidity/cash risk."""
     return json.dumps(
-        build_option_strategy_candidate(symbol, strategy_type, trade_date=trade_date, expiry=expiry),
+        build_option_strategy_candidate(
+            symbol,
+            strategy_type,
+            trade_date=trade_date,
+            expiry=expiry,
+            risk_budget_cash=risk_budget_cash,
+        ),
         ensure_ascii=False,
         default=str,
     )
@@ -231,8 +238,9 @@ def get_option_strategy_scenarios(
     price_shocks: Annotated[list[float] | None, "Underlying shocks, e.g. [-0.03, 0, 0.03]"] = None,
     iv_shocks: Annotated[list[float] | None, "Absolute IV shocks, e.g. [-0.02, 0, 0.02]"] = None,
     days_forward: Annotated[list[int] | None, "Forward days, e.g. [0, 5, 20]"] = None,
+    risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY for scenario loss utilization"] = None,
 ) -> str:
-    """Return option strategy scenario PnL matrix JSON across price/IV/time shocks."""
+    """Return option strategy scenario PnL matrix JSON across price/IV/time shocks with cash PnL."""
     return json.dumps(
         build_option_strategy_scenarios(
             symbol,
@@ -242,6 +250,7 @@ def get_option_strategy_scenarios(
             price_shocks=price_shocks or (-0.05, -0.03, -0.01, 0.0, 0.01, 0.03, 0.05),
             iv_shocks=iv_shocks or (-0.05, -0.02, 0.0, 0.02, 0.05),
             days_forward=days_forward or (0, 1, 5, 20),
+            risk_budget_cash=risk_budget_cash,
         ),
         ensure_ascii=False,
         default=str,

@@ -153,7 +153,8 @@ class TraderProposal(BaseModel):
         description=(
             "For options trades, an auditable strategy object containing legs, expiry, "
             "strike, side, quantity, debit/credit, max loss, max profit, breakeven, "
-            "Greeks snapshot, and liquidity filter."
+            "Greeks snapshot, liquidity filter, contract multiplier, cash premium, "
+            "cash max loss/profit, and risk-budget utilization."
         ),
     )
     reasoning: str = Field(
@@ -248,7 +249,8 @@ class PortfolioDecision(BaseModel):
         description=(
             "For options trades, summarize the deterministic scenario PnL matrix: "
             "worst scenario, best scenario, T+5/T+20 time decay, IV up/down "
-            "sensitivity, max loss consistency, and breakeven proximity."
+            "sensitivity, cash PnL after contract multiplier, max loss consistency, "
+            "risk-budget utilization, and breakeven proximity."
         ),
     )
     options_risk_assessment: Optional[str] = Field(

@@ -46,7 +46,13 @@ def test_strategy_scenario_matrix_contains_price_iv_and_time_dimensions(shfe_opt
     assert len(first["leg_values"]) == 2
     assert matrix["summary"]["best_pnl"] >= matrix["summary"]["worst_pnl"]
     assert "breakeven_proximity" in matrix["summary"]
-    assert matrix["assumptions"]["contract_multiplier_applied"] is False
+    assert matrix["assumptions"]["contract_multiplier_applied"] is True
+    assert matrix["assumptions"]["pnl_unit"] == "option_price_points_and_cash"
+    assert "pnl_cash" in first
+    assert "scenario_value_cash" in first
+    assert "worst_pnl_cash" in matrix["summary"]
+    assert "cash_risk" in matrix
+    assert matrix["cash_risk"]["contract_multiplier"] == 5
     assert matrix["assumptions"]["iv_shock_unit"] == "absolute_vol_points"
 
 

@@ -15,8 +15,8 @@ volatility-first:
 - `bear_researcher`: bearish directional or bearish-volatility structures supported by data.
 - `research_manager`: adjudicate the bull/bear volatility debate and preserve a 5/20/40-day vol path handoff for the trader.
 - `trader`: first state the volatility view, then convert it into structured option strategies with auditable legs/payoff/risk fields.
-- `risk_manager`: stress-test Greeks, gamma/theta, vega, liquidity, expiry, margin/max loss, scenario PnL, breakeven proximity, and no-trade filters.
-- `portfolio_manager`: decide trade/watch/no-trade with scenario PnL assessment, options risk assessment, no-trade conditions, risk budget, and assumptions.
+- `risk_manager`: stress-test Greeks, gamma/theta, vega, liquidity, expiry, margin/max loss, contract-multiplier cash risk, scenario PnL, breakeven proximity, and no-trade filters.
+- `portfolio_manager`: decide trade/watch/no-trade with scenario PnL assessment, cash risk-budget utilization, options risk assessment, no-trade conditions, and assumptions.
 
 LLMs should interpret the structured results. They should not calculate IV,
 Greeks, GEX, DEX, PCR, walls, or gamma flip from raw prices.
@@ -63,7 +63,8 @@ The structurer returns an auditable object with:
 - `max_loss`, `max_profit`, and `breakevens`.
 - net `greeks` snapshot.
 - `liquidity` filter based on min volume/OI.
-- assumptions including `option close + futures close` and `contract_multiplier_applied=False`.
+- assumptions including `option close + futures close` and `contract_multiplier_applied=True`.
+- `cash_risk`: contract multiplier, net premium cash, max loss cash, max profit cash, underlying notional per lot, and risk-budget utilization when provided.
 
 `TraderProposal` can render this object under `Structured Option Strategy`, after the natural-language `Option Strategy` and before `Reasoning`.
 
@@ -84,8 +85,9 @@ across a configurable grid:
 
 The output includes per-leg scenario values, total strategy value, PnL,
 PnL as a fraction of max loss, best/worst scenario IDs, and breakeven proximity.
-All PnL values are in option-price points; contract multipliers are still not
-applied.
+Phase 8 keeps option-price-point fields for auditability and adds cash fields
+after applying the SHFE contract multiplier: `scenario_value_cash`, `pnl_cash`,
+`worst_pnl_cash`, `best_pnl_cash`, and risk-budget utilization when provided.
 
 `get_option_strategy_scenarios` exposes this as JSON to agents so risk and
 portfolio managers can inspect path-dependent payoff behavior instead of only
@@ -102,8 +104,8 @@ the original graph:
 - `bull_researcher` and `bear_researcher` keep the native debate loop but, in options mode, must discuss whether implied volatility is more likely to rise or fall over 5-day, 20-day, and 40-day horizons.
 - `research_manager` carries a `Volatility Debate Summary` into the investment plan so the trader sees both bull and bear volatility path arguments.
 - `trader` renders `Volatility View` before `Option Strategy`; this forces a view on future volatility direction before selecting structures.
-- `aggressive/conservative/neutral risk` analysts keep the native debate loop but must evaluate Greeks, gamma/theta trade-off, vega exposure, liquidity, expiry, margin, max loss, risk budget, scenario PnL worst/best cases, T+5/T+20 decay, IV up/down sensitivity, breakeven proximity, and no-trade filters in options mode.
-- `portfolio_manager` renders optional `Scenario PnL Assessment`, `Options Risk Assessment`, and `No-Trade Conditions`, forcing final approval to be tied to the deterministic stress matrix, risk budget, and executable liquidity.
+- `aggressive/conservative/neutral risk` analysts keep the native debate loop but must evaluate Greeks, gamma/theta trade-off, vega exposure, liquidity, expiry, margin, max loss, cash risk budget, scenario PnL worst/best cases, T+5/T+20 decay, IV up/down sensitivity, breakeven proximity, and no-trade filters in options mode.
+- `portfolio_manager` renders optional `Scenario PnL Assessment`, `Options Risk Assessment`, and `No-Trade Conditions`, forcing final approval to be tied to the deterministic stress matrix, cash risk budget, and executable liquidity.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -114,7 +116,7 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Default price basis: option `close` + futures `close`.
 - Settlement basis is only for explicit settlement/risk-control requests.
 - GEX/DEX are scenario/concentration metrics inferred from exchange OI; exchange OI does not reveal verified dealer inventory.
-- Phase-1 TradingAgents exposure is relative unless contract multiplier enrichment is explicitly added.
+- Contract multipliers are applied from static SHFE futures contract specifications for cash premium, max loss, max profit, notional, and scenario PnL fields. Option-price-point fields remain available for audit.
 
 ## Verification
 
