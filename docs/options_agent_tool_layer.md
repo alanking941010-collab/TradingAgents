@@ -38,6 +38,17 @@ LangChain tools:
 - `get_option_analytics_json`
 - `get_option_analytics_report`
 
+## Analyst node integration
+
+Phase 2B wires the tool layer into the existing analyst nodes without replacing
+the original graph:
+
+- `market_analyst` keeps `get_stock_data` and `get_indicators`, and adds `get_option_trade_context`, `get_option_analytics_report`, and `get_option_analytics_json` for supported SHFE metals option symbols.
+- `fundamentals_analyst` keeps the commodity/fundamental tools and adds `get_option_trade_context` so inventories, macro anchors, and term structure can be interpreted as volatility-regime drivers.
+- `news_analyst` keeps local/global news tools and adds `get_option_trade_context` so events are framed as IV, skew, and tail-demand repricing risks.
+
+The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
+
 ## Conventions
 
 - Model: Black-76 futures option model.

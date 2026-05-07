@@ -38,6 +38,11 @@ from tradingagents.agents.utils.agent_utils import (
     get_insider_transactions,
     get_global_news
 )
+from tradingagents.agents.utils.options_tools import (
+    get_option_analytics_json,
+    get_option_analytics_report,
+    get_option_trade_context,
+)
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
 from .conditional_logic import ConditionalLogic
@@ -161,6 +166,10 @@ class TradingAgentsGraph:
                     get_stock_data,
                     # Technical indicators
                     get_indicators,
+                    # SHFE options analytics tools (used when analyst prompt enables options mode)
+                    get_option_trade_context,
+                    get_option_analytics_report,
+                    get_option_analytics_json,
                 ]
             ),
             "social": ToolNode(
@@ -175,6 +184,8 @@ class TradingAgentsGraph:
                     get_news,
                     get_global_news,
                     get_insider_transactions,
+                    # Compact SHFE options context for event-risk interpretation
+                    get_option_trade_context,
                 ]
             ),
             "fundamentals": ToolNode(
@@ -184,6 +195,8 @@ class TradingAgentsGraph:
                     get_balance_sheet,
                     get_cashflow,
                     get_income_statement,
+                    # Compact SHFE options context for volatility-regime interpretation
+                    get_option_trade_context,
                 ]
             ),
         }
