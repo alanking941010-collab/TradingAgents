@@ -122,3 +122,38 @@ def options_research_manager_instruction(symbol: str | None) -> str:
         "State which horizon has the clearest edge, which horizons are balanced, and what catalysts would flip the view. "
         "The trader must first state a volatility view before selecting option structures, so make this handoff explicit."
     )
+
+
+def options_risk_debator_instruction(symbol: str | None, risk_role: str) -> str:
+    """Return options-mode guidance for aggressive/neutral/conservative risk analysts."""
+    if not is_options_analytics_symbol(symbol):
+        return ""
+
+    product = normalize_product(symbol)
+    role_lens = {
+        "aggressive": "identify where the reward justifies taking defined option risk, but do not ignore Greeks or liquidity.",
+        "neutral": "balance upside/downside by translating the trader's vol view into scenario and sizing constraints.",
+        "conservative": "stress the failure modes, capital protection, and no-trade filters before approving risk.",
+    }.get(risk_role, "evaluate the option structure risk controls.")
+    return (
+        f"\n\nSHFE options risk mode is active for {product}. Evaluate the trader's proposed option structure through an options-risk lens: {role_lens} "
+        "Explicitly cover Greeks: delta, gamma, theta, and vega; discuss gamma/theta trade-off and vega exposure under 5-day, 20-day, and 40-day volatility paths. "
+        "Check liquidity, bid/ask feasibility, open interest concentration, expiry risk, margin, max loss, and whether the risk budget can absorb premium decay or stress moves. "
+        "List concrete no-trade conditions such as poor liquidity, excessive theta bleed, unstable gamma near expiry, margin/max loss beyond budget, or invalidated volatility view. "
+        "Remember dealer position is unknown; GEX/DEX from exchange OI are scenario/concentration metrics, not verified dealer inventory."
+    )
+
+
+def options_portfolio_instruction(symbol: str | None) -> str:
+    """Return final portfolio-manager guidance for options mode."""
+    if not is_options_analytics_symbol(symbol):
+        return ""
+
+    product = normalize_product(symbol)
+    return (
+        f"\n\nSHFE options portfolio mode is active for {product}. The final decision must include an Options Risk Assessment and No-Trade Conditions. "
+        "Before approving any trade, check Greeks, delta/gamma/theta/vega exposure, liquidity, expiry risk, margin, max loss, and risk budget. "
+        "Tie the position size to maximum premium at risk or defined max loss; avoid naked short gamma unless explicitly justified by liquidity, margin, and stress scenarios. "
+        "State no-trade conditions clearly: poor liquidity, wide bid/ask, excessive theta bleed, unstable gamma near expiry, margin/max loss beyond risk budget, or a broken volatility view. "
+        "Dealer position is unknown, so GEX/DEX must remain exchange-OI scenario metrics, not proof of dealer inventory."
+    )

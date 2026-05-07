@@ -231,6 +231,21 @@ class PortfolioDecision(BaseModel):
             "incorporate them; otherwise rely solely on the current analysis."
         ),
     )
+    options_risk_assessment: Optional[str] = Field(
+        default=None,
+        description=(
+            "For options trades, summarize Greeks, gamma/theta trade-off, vega "
+            "exposure, liquidity, expiry risk, margin, max loss, and risk budget."
+        ),
+    )
+    no_trade_conditions: Optional[str] = Field(
+        default=None,
+        description=(
+            "For options trades, list conditions that invalidate the trade, such as "
+            "poor liquidity, wide bid/ask, excessive theta bleed, unstable gamma, "
+            "margin/max loss beyond budget, or broken volatility view."
+        ),
+    )
     price_target: Optional[float] = Field(
         default=None,
         description="Optional target price in the instrument's quote currency.",
@@ -256,6 +271,10 @@ def render_pm_decision(decision: PortfolioDecision) -> str:
         "",
         f"**Investment Thesis**: {decision.investment_thesis}",
     ]
+    if decision.options_risk_assessment:
+        parts.extend(["", f"**Options Risk Assessment**: {decision.options_risk_assessment}"])
+    if decision.no_trade_conditions:
+        parts.extend(["", f"**No-Trade Conditions**: {decision.no_trade_conditions}"])
     if decision.price_target is not None:
         parts.extend(["", f"**Price Target**: {decision.price_target}"])
     if decision.time_horizon:

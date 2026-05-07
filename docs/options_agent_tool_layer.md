@@ -15,8 +15,8 @@ volatility-first:
 - `bear_researcher`: bearish directional or bearish-volatility structures supported by data.
 - `research_manager`: adjudicate the bull/bear volatility debate and preserve a 5/20/40-day vol path handoff for the trader.
 - `trader`: first state the volatility view, then convert it into option structures, entry conditions, and no-trade alternatives.
-- `risk_manager`: stress-test Greeks, liquidity, expiry, margin, and scenario risks.
-- `portfolio_manager`: decide trade/watch/no-trade with risk budget and assumptions.
+- `risk_manager`: stress-test Greeks, gamma/theta, vega, liquidity, expiry, margin/max loss, and no-trade filters.
+- `portfolio_manager`: decide trade/watch/no-trade with options risk assessment, no-trade conditions, risk budget, and assumptions.
 
 LLMs should interpret the structured results. They should not calculate IV,
 Greeks, GEX, DEX, PCR, walls, or gamma flip from raw prices.
@@ -50,6 +50,8 @@ the original graph:
 - `bull_researcher` and `bear_researcher` keep the native debate loop but, in options mode, must discuss whether implied volatility is more likely to rise or fall over 5-day, 20-day, and 40-day horizons.
 - `research_manager` carries a `Volatility Debate Summary` into the investment plan so the trader sees both bull and bear volatility path arguments.
 - `trader` renders `Volatility View` before `Option Strategy`; this forces a view on future volatility direction before selecting structures.
+- `aggressive/conservative/neutral risk` analysts keep the native debate loop but must evaluate Greeks, gamma/theta trade-off, vega exposure, liquidity, expiry, margin, max loss, risk budget, and no-trade filters in options mode.
+- `portfolio_manager` renders optional `Options Risk Assessment` and `No-Trade Conditions`, forcing final approval to be tied to risk budget and executable liquidity.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
