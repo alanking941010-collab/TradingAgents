@@ -18,8 +18,9 @@ so that:
 
 from __future__ import annotations
 
+import json
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -147,6 +148,14 @@ class TraderProposal(BaseModel):
             "Greeks, and no-trade conditions."
         ),
     )
+    structured_strategy: Optional[dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "For options trades, an auditable strategy object containing legs, expiry, "
+            "strike, side, quantity, debit/credit, max loss, max profit, breakeven, "
+            "Greeks snapshot, and liquidity filter."
+        ),
+    )
     reasoning: str = Field(
         description=(
             "The case for this action, anchored in the analysts' reports and "
@@ -181,6 +190,9 @@ def render_trader_proposal(proposal: TraderProposal) -> str:
         parts.extend(["", f"**Volatility View**: {proposal.volatility_view}"])
     if proposal.option_strategy:
         parts.extend(["", f"**Option Strategy**: {proposal.option_strategy}"])
+    if proposal.structured_strategy:
+        rendered_strategy = json.dumps(proposal.structured_strategy, ensure_ascii=False, indent=2, default=str)
+        parts.extend(["", "**Structured Option Strategy**:", "", "```json", rendered_strategy, "```"])
     parts.extend([
         "",
         f"**Reasoning**: {proposal.reasoning}",

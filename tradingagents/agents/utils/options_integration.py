@@ -13,6 +13,7 @@ from typing import Any
 from tradingagents.agents.utils.options_tools import (
     get_option_analytics_json,
     get_option_analytics_report,
+    get_option_strategy_candidate,
     get_option_trade_context,
 )
 from tradingagents.options.data_loader import normalize_product
@@ -52,7 +53,7 @@ def augment_tools_for_options(
         augmented.append(get_option_trade_context)
 
     if analyst_role == "market":
-        for tool in (get_option_analytics_report, get_option_analytics_json):
+        for tool in (get_option_analytics_report, get_option_analytics_json, get_option_strategy_candidate):
             if tool not in augmented:
                 augmented.append(tool)
     return augmented
@@ -104,6 +105,7 @@ def options_trader_instruction(symbol: str | None) -> str:
         f"\n\nSHFE options trading mode is active for {product}. Before proposing any option structure, first state your volatility view. "
         "Synthesize the previous analyst evidence plus the bull and bear debate about whether implied volatility is more likely to rise or fall over the 5-day, 20-day, and 40-day horizons. "
         "Only after that volatility view should you propose option structures. Prefer defined-risk structures unless the evidence and liquidity justify otherwise. "
+        "When an option structure is proposed, include a structured option strategy object with legs, expiry, strike, side, quantity, debit/credit, max loss, max profit, breakeven, Greeks snapshot, and liquidity filter. "
         "Tie every structure to the vol view, directional view, expiry, strike area, liquidity, Greeks, and no-trade conditions. "
         "Do not recalculate IV/Greeks/GEX/DEX; use the prior deterministic analytics as source-of-truth inputs. "
         "Default basis remains option close + futures close, r = 1.5%, with GEX/DEX treated only as exchange-OI scenario metrics."

@@ -15,6 +15,7 @@ from langchain_core.tools import tool
 
 from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE, analyze_option_chain
 from tradingagents.options.models import EnrichedOptionQuote, OptionAnalyticsReport
+from tradingagents.options.strategies import build_option_strategy_candidate
 
 
 _AGENT_LENS = {
@@ -23,7 +24,7 @@ _AGENT_LENS = {
     "news_analyst": "event risks that can reprice IV, skew, and tail demand",
     "bull_researcher": "bullish directional or bullish-volatility option structures supported by data",
     "bear_researcher": "bearish directional or bearish-volatility option structures supported by data",
-    "trader": "translate validated views into option structures, entry conditions, and no-trade alternatives",
+    "trader": "translate validated views into structured option strategies with auditable legs and payoff",
     "risk_manager": "stress-test delta/gamma/vega/theta, liquidity, expiry, and margin assumptions",
     "portfolio_manager": "decide trade/watch/no-trade with risk budget and scenario checklist",
 }
@@ -203,3 +204,18 @@ def get_option_analytics_report(
 ) -> str:
     """Return a Markdown option analytics report for a SHFE option product."""
     return build_option_analytics_markdown(symbol, trade_date, expiry)
+
+
+@tool
+def get_option_strategy_candidate(
+    symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle"],
+    trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
+    expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
+) -> str:
+    """Return a structured option strategy candidate JSON with legs/payoff/Greeks/liquidity."""
+    return json.dumps(
+        build_option_strategy_candidate(symbol, strategy_type, trade_date=trade_date, expiry=expiry),
+        ensure_ascii=False,
+        default=str,
+    )
