@@ -141,8 +141,9 @@ def options_risk_debator_instruction(symbol: str | None, risk_role: str) -> str:
     return (
         f"\n\nSHFE options risk mode is active for {product}. Evaluate the trader's proposed option structure through an options-risk lens: {role_lens} "
         "Explicitly cover Greeks: delta, gamma, theta, and vega; discuss gamma/theta trade-off and vega exposure under 5-day, 20-day, and 40-day volatility paths. "
+        "Use the trader's structured strategy / scenario PnL matrix when present: cite the worst scenario, best scenario, T+5 and T+20 time-decay cases, IV up/down sensitivity, max loss consistency, and breakeven proximity. "
         "Check liquidity, bid/ask feasibility, open interest concentration, expiry risk, margin, max loss, and whether the risk budget can absorb premium decay or stress moves. "
-        "List concrete no-trade conditions such as poor liquidity, excessive theta bleed, unstable gamma near expiry, margin/max loss beyond budget, or invalidated volatility view. "
+        "List concrete no-trade conditions such as poor liquidity, excessive theta bleed, unstable gamma near expiry, margin/max loss beyond budget, unacceptable scenario PnL, adverse breakeven proximity, or invalidated volatility view. "
         "Remember dealer position is unknown; GEX/DEX from exchange OI are scenario/concentration metrics, not verified dealer inventory."
     )
 
@@ -154,9 +155,10 @@ def options_portfolio_instruction(symbol: str | None) -> str:
 
     product = normalize_product(symbol)
     return (
-        f"\n\nSHFE options portfolio mode is active for {product}. The final decision must include an Options Risk Assessment and No-Trade Conditions. "
-        "Before approving any trade, check Greeks, delta/gamma/theta/vega exposure, liquidity, expiry risk, margin, max loss, and risk budget. "
+        f"\n\nSHFE options portfolio mode is active for {product}. The final decision must include a Scenario PnL Assessment, an Options Risk Assessment, and No-Trade Conditions. "
+        "Before approving any trade, check the scenario PnL matrix: worst scenario, best scenario, T+5 and T+20 time-decay cases, IV up/down sensitivity, max loss consistency, and breakeven proximity. "
+        "Then check Greeks, delta/gamma/theta/vega exposure, liquidity, expiry risk, margin, max loss, and risk budget. "
         "Tie the position size to maximum premium at risk or defined max loss; avoid naked short gamma unless explicitly justified by liquidity, margin, and stress scenarios. "
-        "State no-trade conditions clearly: poor liquidity, wide bid/ask, excessive theta bleed, unstable gamma near expiry, margin/max loss beyond risk budget, or a broken volatility view. "
+        "State no-trade conditions clearly: poor liquidity, wide bid/ask, excessive theta bleed, unstable gamma near expiry, margin/max loss beyond risk budget, unacceptable scenario PnL, adverse breakeven proximity, or a broken volatility view. "
         "Dealer position is unknown, so GEX/DEX must remain exchange-OI scenario metrics, not proof of dealer inventory."
     )

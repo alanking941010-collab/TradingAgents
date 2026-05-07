@@ -243,6 +243,14 @@ class PortfolioDecision(BaseModel):
             "incorporate them; otherwise rely solely on the current analysis."
         ),
     )
+    scenario_pnl_assessment: Optional[str] = Field(
+        default=None,
+        description=(
+            "For options trades, summarize the deterministic scenario PnL matrix: "
+            "worst scenario, best scenario, T+5/T+20 time decay, IV up/down "
+            "sensitivity, max loss consistency, and breakeven proximity."
+        ),
+    )
     options_risk_assessment: Optional[str] = Field(
         default=None,
         description=(
@@ -283,6 +291,8 @@ def render_pm_decision(decision: PortfolioDecision) -> str:
         "",
         f"**Investment Thesis**: {decision.investment_thesis}",
     ]
+    if decision.scenario_pnl_assessment:
+        parts.extend(["", f"**Scenario PnL Assessment**: {decision.scenario_pnl_assessment}"])
     if decision.options_risk_assessment:
         parts.extend(["", f"**Options Risk Assessment**: {decision.options_risk_assessment}"])
     if decision.no_trade_conditions:
