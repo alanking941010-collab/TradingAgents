@@ -23,6 +23,17 @@ from .alpha_vantage import (
     get_global_news as get_alpha_vantage_global_news,
 )
 from .alpha_vantage_common import AlphaVantageRateLimitError
+from .alan_business_db import (
+    get_stock_data as get_alan_stock_data,
+    get_indicator as get_alan_indicator,
+    get_fundamentals as get_alan_fundamentals,
+    get_balance_sheet as get_alan_balance_sheet,
+    get_cashflow as get_alan_cashflow,
+    get_income_statement as get_alan_income_statement,
+    get_news as get_alan_news,
+    get_global_news as get_alan_global_news,
+    get_insider_transactions as get_alan_insider_transactions,
+)
 
 # Configuration and routing logic
 from .config import get_config
@@ -61,6 +72,7 @@ TOOLS_CATEGORIES = {
 }
 
 VENDOR_LIST = [
+    "alan_db",
     "yfinance",
     "alpha_vantage",
 ]
@@ -69,41 +81,50 @@ VENDOR_LIST = [
 VENDOR_METHODS = {
     # core_stock_apis
     "get_stock_data": {
+        "alan_db": get_alan_stock_data,
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
     },
     # technical_indicators
     "get_indicators": {
+        "alan_db": get_alan_indicator,
         "alpha_vantage": get_alpha_vantage_indicator,
         "yfinance": get_stock_stats_indicators_window,
     },
     # fundamental_data
     "get_fundamentals": {
+        "alan_db": get_alan_fundamentals,
         "alpha_vantage": get_alpha_vantage_fundamentals,
         "yfinance": get_yfinance_fundamentals,
     },
     "get_balance_sheet": {
+        "alan_db": get_alan_balance_sheet,
         "alpha_vantage": get_alpha_vantage_balance_sheet,
         "yfinance": get_yfinance_balance_sheet,
     },
     "get_cashflow": {
+        "alan_db": get_alan_cashflow,
         "alpha_vantage": get_alpha_vantage_cashflow,
         "yfinance": get_yfinance_cashflow,
     },
     "get_income_statement": {
+        "alan_db": get_alan_income_statement,
         "alpha_vantage": get_alpha_vantage_income_statement,
         "yfinance": get_yfinance_income_statement,
     },
     # news_data
     "get_news": {
+        "alan_db": get_alan_news,
         "alpha_vantage": get_alpha_vantage_news,
         "yfinance": get_news_yfinance,
     },
     "get_global_news": {
+        "alan_db": get_alan_global_news,
         "yfinance": get_global_news_yfinance,
         "alpha_vantage": get_alpha_vantage_global_news,
     },
     "get_insider_transactions": {
+        "alan_db": get_alan_insider_transactions,
         "alpha_vantage": get_alpha_vantage_insider_transactions,
         "yfinance": get_yfinance_insider_transactions,
     },

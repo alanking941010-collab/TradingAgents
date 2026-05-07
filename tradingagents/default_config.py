@@ -38,10 +38,10 @@ DEFAULT_CONFIG = {
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
-        "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
-        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
-        "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
-        "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+        "core_stock_apis": "alan_db",       # Alan local business SQLite DBs
+        "technical_indicators": "alan_db",  # Alan local business SQLite DBs
+        "fundamental_data": "alan_db",      # Alan local business SQLite DBs
+        "news_data": "alan_db",             # Alan local business SQLite DBs
     },
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
