@@ -117,6 +117,7 @@ _PROVIDER_CONFIG = {
     "glm": ("https://api.z.ai/api/paas/v4/", "ZHIPU_API_KEY"),
     "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
     "ollama": ("http://localhost:11434/v1", None),
+    "kimi": ("https://api.moonshot.cn/v1", "KIMI_API_KEY"),
 }
 
 
