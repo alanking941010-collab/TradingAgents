@@ -13,7 +13,8 @@ volatility-first:
 - `news_analyst`: event risks that can reprice IV, skew, or tail demand.
 - `bull_researcher`: bullish directional or bullish-volatility structures supported by data.
 - `bear_researcher`: bearish directional or bearish-volatility structures supported by data.
-- `trader`: convert views into option structures, entry conditions, and no-trade alternatives.
+- `research_manager`: adjudicate the bull/bear volatility debate and preserve a 5/20/40-day vol path handoff for the trader.
+- `trader`: first state the volatility view, then convert it into option structures, entry conditions, and no-trade alternatives.
 - `risk_manager`: stress-test Greeks, liquidity, expiry, margin, and scenario risks.
 - `portfolio_manager`: decide trade/watch/no-trade with risk budget and assumptions.
 
@@ -46,6 +47,9 @@ the original graph:
 - `market_analyst` keeps `get_stock_data` and `get_indicators`, and adds `get_option_trade_context`, `get_option_analytics_report`, and `get_option_analytics_json` for supported SHFE metals option symbols.
 - `fundamentals_analyst` keeps the commodity/fundamental tools and adds `get_option_trade_context` so inventories, macro anchors, and term structure can be interpreted as volatility-regime drivers.
 - `news_analyst` keeps local/global news tools and adds `get_option_trade_context` so events are framed as IV, skew, and tail-demand repricing risks.
+- `bull_researcher` and `bear_researcher` keep the native debate loop but, in options mode, must discuss whether implied volatility is more likely to rise or fall over 5-day, 20-day, and 40-day horizons.
+- `research_manager` carries a `Volatility Debate Summary` into the investment plan so the trader sees both bull and bear volatility path arguments.
+- `trader` renders `Volatility View` before `Option Strategy`; this forces a view on future volatility direction before selecting structures.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 

@@ -82,6 +82,14 @@ class ResearchPlan(BaseModel):
             "Speak naturally, as if to a teammate."
         ),
     )
+    volatility_debate_summary: Optional[str] = Field(
+        default=None,
+        description=(
+            "For options-mode runs, summarize the bull/bear debate on whether "
+            "implied volatility is more likely to rise or fall over 5-day, "
+            "20-day, and 40-day horizons."
+        ),
+    )
     strategic_actions: str = Field(
         description=(
             "Concrete steps for the trader to implement the recommendation, "
@@ -92,13 +100,18 @@ class ResearchPlan(BaseModel):
 
 def render_research_plan(plan: ResearchPlan) -> str:
     """Render a ResearchPlan to markdown for storage and the trader's prompt context."""
-    return "\n".join([
+    parts = [
         f"**Recommendation**: {plan.recommendation.value}",
         "",
         f"**Rationale**: {plan.rationale}",
+    ]
+    if plan.volatility_debate_summary:
+        parts.extend(["", f"**Volatility Debate Summary**: {plan.volatility_debate_summary}"])
+    parts.extend([
         "",
         f"**Strategic Actions**: {plan.strategic_actions}",
     ])
+    return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +130,22 @@ class TraderProposal(BaseModel):
 
     action: TraderAction = Field(
         description="The transaction direction. Exactly one of Buy / Hold / Sell.",
+    )
+    volatility_view: Optional[str] = Field(
+        default=None,
+        description=(
+            "For options trades, first state whether implied volatility is more likely "
+            "to rise or fall over 5-day, 20-day, and 40-day horizons, synthesizing "
+            "the bull and bear volatility debate."
+        ),
+    )
+    option_strategy: Optional[str] = Field(
+        default=None,
+        description=(
+            "For options trades, propose the option structure only after the volatility "
+            "view, including expiry/strike area, defined-risk preference, liquidity, "
+            "Greeks, and no-trade conditions."
+        ),
     )
     reasoning: str = Field(
         description=(
@@ -147,9 +176,15 @@ def render_trader_proposal(proposal: TraderProposal) -> str:
     """
     parts = [
         f"**Action**: {proposal.action.value}",
+    ]
+    if proposal.volatility_view:
+        parts.extend(["", f"**Volatility View**: {proposal.volatility_view}"])
+    if proposal.option_strategy:
+        parts.extend(["", f"**Option Strategy**: {proposal.option_strategy}"])
+    parts.extend([
         "",
         f"**Reasoning**: {proposal.reasoning}",
-    ]
+    ])
     if proposal.entry_price is not None:
         parts.extend(["", f"**Entry Price**: {proposal.entry_price}"])
     if proposal.stop_loss is not None:

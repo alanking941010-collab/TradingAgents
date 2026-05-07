@@ -1,3 +1,4 @@
+from tradingagents.agents.utils.options_integration import options_researcher_instruction
 
 
 def create_bull_researcher(llm):
@@ -29,6 +30,7 @@ Company fundamentals report: {fundamentals_report}
 Conversation history of the debate: {history}
 Last bear argument: {current_response}
 Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position.
+{options_researcher_instruction(state["company_of_interest"], "bull")}
 """
 
         response = llm.invoke(prompt)
