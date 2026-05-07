@@ -15,6 +15,7 @@ from langchain_core.tools import tool
 
 from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE, analyze_option_chain
 from tradingagents.options.models import EnrichedOptionQuote, OptionAnalyticsReport
+from tradingagents.options.scenarios import build_option_strategy_scenarios
 from tradingagents.options.strategies import build_option_strategy_candidate
 
 
@@ -216,6 +217,32 @@ def get_option_strategy_candidate(
     """Return a structured option strategy candidate JSON with legs/payoff/Greeks/liquidity."""
     return json.dumps(
         build_option_strategy_candidate(symbol, strategy_type, trade_date=trade_date, expiry=expiry),
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+@tool
+def get_option_strategy_scenarios(
+    symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle"],
+    trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
+    expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
+    price_shocks: Annotated[list[float] | None, "Underlying shocks, e.g. [-0.03, 0, 0.03]"] = None,
+    iv_shocks: Annotated[list[float] | None, "Absolute IV shocks, e.g. [-0.02, 0, 0.02]"] = None,
+    days_forward: Annotated[list[int] | None, "Forward days, e.g. [0, 5, 20]"] = None,
+) -> str:
+    """Return option strategy scenario PnL matrix JSON across price/IV/time shocks."""
+    return json.dumps(
+        build_option_strategy_scenarios(
+            symbol,
+            strategy_type,
+            trade_date=trade_date,
+            expiry=expiry,
+            price_shocks=price_shocks or (-0.05, -0.03, -0.01, 0.0, 0.01, 0.03, 0.05),
+            iv_shocks=iv_shocks or (-0.05, -0.02, 0.0, 0.02, 0.05),
+            days_forward=days_forward or (0, 1, 5, 20),
+        ),
         ensure_ascii=False,
         default=str,
     )

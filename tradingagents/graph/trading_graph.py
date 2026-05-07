@@ -42,6 +42,7 @@ from tradingagents.agents.utils.options_tools import (
     get_option_analytics_json,
     get_option_analytics_report,
     get_option_strategy_candidate,
+    get_option_strategy_scenarios,
     get_option_trade_context,
 )
 
@@ -172,6 +173,7 @@ class TradingAgentsGraph:
                     get_option_analytics_report,
                     get_option_analytics_json,
                     get_option_strategy_candidate,
+                    get_option_strategy_scenarios,
                 ]
             ),
             "social": ToolNode(

@@ -14,6 +14,7 @@ from tradingagents.agents.utils.options_tools import (
     get_option_analytics_json,
     get_option_analytics_report,
     get_option_strategy_candidate,
+    get_option_strategy_scenarios,
     get_option_trade_context,
 )
 from tradingagents.options.data_loader import normalize_product
@@ -53,7 +54,7 @@ def augment_tools_for_options(
         augmented.append(get_option_trade_context)
 
     if analyst_role == "market":
-        for tool in (get_option_analytics_report, get_option_analytics_json, get_option_strategy_candidate):
+        for tool in (get_option_analytics_report, get_option_analytics_json, get_option_strategy_candidate, get_option_strategy_scenarios):
             if tool not in augmented:
                 augmented.append(tool)
     return augmented

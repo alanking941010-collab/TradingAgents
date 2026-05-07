@@ -39,6 +39,7 @@ LangChain tools:
 - `get_option_analytics_json`
 - `get_option_analytics_report`
 - `get_option_strategy_candidate`
+- `get_option_strategy_scenarios`
 
 ## Strategy structurer
 
@@ -66,12 +67,36 @@ The structurer returns an auditable object with:
 
 `TraderProposal` can render this object under `Structured Option Strategy`, after the natural-language `Option Strategy` and before `Reasoning`.
 
+## Scenario PnL / Payoff Engine
+
+Phase 6 adds a deterministic scenario engine:
+
+```text
+tradingagents/options/scenarios.py
+```
+
+It takes a structured strategy candidate and reprices each leg with Black-76
+across a configurable grid:
+
+- underlying futures shocks, e.g. `F ±1% / ±3% / ±5%`;
+- absolute IV shocks, e.g. `IV ±2 vol / ±5 vol`;
+- time-forward scenarios, e.g. `T+0 / T+1 / T+5 / T+20`.
+
+The output includes per-leg scenario values, total strategy value, PnL,
+PnL as a fraction of max loss, best/worst scenario IDs, and breakeven proximity.
+All PnL values are in option-price points; contract multipliers are still not
+applied.
+
+`get_option_strategy_scenarios` exposes this as JSON to agents so risk and
+portfolio managers can inspect path-dependent payoff behavior instead of only
+reading static Greeks/max-loss fields.
+
 ## Analyst node integration
 
 Phase 2B wires the tool layer into the existing analyst nodes without replacing
 the original graph:
 
-- `market_analyst` keeps `get_stock_data` and `get_indicators`, and adds `get_option_trade_context`, `get_option_analytics_report`, `get_option_analytics_json`, and `get_option_strategy_candidate` for supported SHFE metals option symbols.
+- `market_analyst` keeps `get_stock_data` and `get_indicators`, and adds `get_option_trade_context`, `get_option_analytics_report`, `get_option_analytics_json`, `get_option_strategy_candidate`, and `get_option_strategy_scenarios` for supported SHFE metals option symbols.
 - `fundamentals_analyst` keeps the commodity/fundamental tools and adds `get_option_trade_context` so inventories, macro anchors, and term structure can be interpreted as volatility-regime drivers.
 - `news_analyst` keeps local/global news tools and adds `get_option_trade_context` so events are framed as IV, skew, and tail-demand repricing risks.
 - `bull_researcher` and `bear_researcher` keep the native debate loop but, in options mode, must discuss whether implied volatility is more likely to rise or fall over 5-day, 20-day, and 40-day horizons.
