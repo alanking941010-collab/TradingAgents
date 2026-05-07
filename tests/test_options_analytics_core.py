@@ -107,6 +107,17 @@ def test_load_option_chain_snapshot_normalizes_contract_rows(shfe_options_db):
     assert snapshot.options[0].source == "shfe_options.db:vw_shfe_option_chain_latest"
 
 
+def test_option_quote_mid_price_prefers_close_over_settle_for_trading_analysis(shfe_options_db):
+    from tradingagents.options.data_loader import load_option_chain_snapshot
+
+    snapshot = load_option_chain_snapshot("CU", trade_date="2026-05-01", expiry="20260625")
+    atm_call = next(row for row in snapshot.options if row.ts_code == "CU2606C80000.SHF")
+
+    assert atm_call.close == pytest.approx(2450)
+    assert atm_call.settle == pytest.approx(2400)
+    assert atm_call.mid_price == pytest.approx(2450)
+
+
 def test_analyze_option_chain_computes_core_metrics(shfe_options_db):
     from tradingagents.options.analytics import analyze_option_chain
 

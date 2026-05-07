@@ -24,10 +24,13 @@ class OptionQuote:
 
     @property
     def mid_price(self) -> float | None:
-        if self.settle is not None and self.settle > 0:
-            return self.settle
+        # Trading-analysis default follows Alan's convention: option close
+        # with futures close. Settlement price should be used only when a
+        # settlement/risk-control basis is explicitly requested upstream.
         if self.close is not None and self.close > 0:
             return self.close
+        if self.settle is not None and self.settle > 0:
+            return self.settle
         return None
 
 
