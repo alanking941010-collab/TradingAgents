@@ -19,6 +19,7 @@ from tradingagents.options.models import EnrichedOptionQuote, OptionAnalyticsRep
 from tradingagents.options.replay import build_option_strategy_replay
 from tradingagents.options.reports import build_feishu_delivery_payload, build_option_strategy_report
 from tradingagents.options.scenarios import build_option_strategy_scenarios
+from tradingagents.options.selector import build_option_strategy_selection
 from tradingagents.options.strategies import build_option_strategy_candidate
 
 
@@ -237,6 +238,34 @@ def get_option_strategy_candidate(
             strategy_type,
             trade_date=trade_date,
             expiry=expiry,
+            risk_budget_cash=risk_budget_cash,
+            min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
+            max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+        ),
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+@tool
+def get_option_strategy_selection(
+    symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
+    trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
+    expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
+    directional_bias: Annotated[str | None, "Directional bias: bullish, bearish, neutral/range"] = "neutral",
+    volatility_view: Annotated[str | None, "Volatility regime view, e.g. range_bound_high_iv, iv_up, low_iv, moderate_iv"] = None,
+    risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY for ranking and no-trade checks"] = None,
+    min_credit_pct_of_wing_width: Annotated[float | None, "Optional credit filter for short iron condor; executable credit divided by wing width must be at least this ratio"] = None,
+    max_bid_ask_spread_pct: Annotated[float | None, "Optional bid/ask filter; maximum leg bid/ask spread percentage must be at or below this ratio"] = None,
+) -> str:
+    """Return deterministic option strategy ranking from vol surface, execution, margin, and risk budget."""
+    return json.dumps(
+        build_option_strategy_selection(
+            symbol,
+            trade_date=trade_date,
+            expiry=expiry,
+            directional_bias=directional_bias,
+            volatility_view=volatility_view,
             risk_budget_cash=risk_budget_cash,
             min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
             max_bid_ask_spread_pct=max_bid_ask_spread_pct,

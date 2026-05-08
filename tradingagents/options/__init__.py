@@ -11,6 +11,7 @@ from tradingagents.options.data_loader import load_option_chain_snapshot
 from tradingagents.options.pricing import black76_price, implied_volatility
 from tradingagents.options.delivery import build_hermes_cron_delivery_spec, send_feishu_delivery_payload
 from tradingagents.options.reports import build_feishu_delivery_payload, build_option_strategy_report
+from tradingagents.options.selector import build_option_strategy_selection
 
 __all__ = [
     "analyze_option_chain",
@@ -18,6 +19,7 @@ __all__ = [
     "build_feishu_delivery_payload",
     "build_hermes_cron_delivery_spec",
     "build_option_strategy_report",
+    "build_option_strategy_selection",
     "contract_multiplier_for_product",
     "implied_volatility",
     "load_option_chain_snapshot",

@@ -47,6 +47,7 @@ LangChain tools:
 - `get_option_analytics_json`
 - `get_option_analytics_report`
 - `get_option_strategy_candidate`
+- `get_option_strategy_selection`
 - `get_option_strategy_scenarios`
 - `get_option_strategy_replay`
 - `get_option_strategy_report`
@@ -86,6 +87,28 @@ The structurer returns an auditable object with:
 - `cash_risk`: contract multiplier, net premium cash, max loss cash, max profit cash, underlying notional per lot, and risk-budget utilization when provided.
 
 `TraderProposal` can render this object under `Structured Option Strategy`, after the natural-language `Option Strategy` and before `Reasoning`.
+
+## Strategy Selector / Ranking
+
+Phase 17 adds a deterministic selector in:
+
+```text
+tradingagents/options/selector.py
+```
+
+`build_option_strategy_selection` ranks supported structures using the Phase 16
+volatility surface diagnostics plus each strategy candidate's execution,
+liquidity, simplified margin, risk-budget status, and credit-quality fields. The
+selector returns:
+
+- `surface_regime`: nearest expiry, term shape/slope, put-call skew, risk-reversal proxy, smile-curvature proxy, and ATM IV.
+- `ranked_candidates`: strategy type, score, decision (`candidate`, `watch`, `low_priority`, or `no_trade`), ranking reasons, no-trade reasons, margin/max-loss cash, execution liquidity grade, and the full underlying candidate.
+- `selected_strategy`: the highest-ranked non-`no_trade` structure.
+- `markdown`: a human-readable `Strategy Ranking` section for reports or Feishu handoff.
+
+This is a deterministic pre-trade research layer. It does not execute orders and
+should not override explicit risk-manager/portfolio-manager rejection when live
+liquidity, margin, or market conditions invalidate the setup.
 
 ## Scenario PnL / Payoff Engine
 
@@ -178,7 +201,7 @@ and Feishu payload JSON artifacts for audit.
 Phase 2B wires the tool layer into the existing analyst nodes without replacing
 the original graph:
 
-- `market_analyst` keeps `get_stock_data` and `get_indicators`, and adds `get_option_trade_context`, `get_option_analytics_report`, `get_option_analytics_json`, `get_option_strategy_candidate`, `get_option_strategy_scenarios`, `get_option_strategy_replay`, `get_option_strategy_report`, `get_option_feishu_delivery_payload`, and `get_option_hermes_cron_delivery_spec` for supported SHFE metals option symbols.
+- `market_analyst` keeps `get_stock_data` and `get_indicators`, and adds `get_option_trade_context`, `get_option_analytics_report`, `get_option_analytics_json`, `get_option_strategy_candidate`, `get_option_strategy_selection`, `get_option_strategy_scenarios`, `get_option_strategy_replay`, `get_option_strategy_report`, `get_option_feishu_delivery_payload`, and `get_option_hermes_cron_delivery_spec` for supported SHFE metals option symbols.
 - `fundamentals_analyst` keeps the commodity/fundamental tools and adds `get_option_trade_context` so inventories, macro anchors, and term structure can be interpreted as volatility-regime drivers.
 - `news_analyst` keeps local/global news tools and adds `get_option_trade_context` so events are framed as IV, skew, and tail-demand repricing risks.
 - `bull_researcher` and `bear_researcher` keep the native debate loop but, in options mode, must discuss whether implied volatility is more likely to rise or fall over 5-day, 20-day, and 40-day horizons.
@@ -195,6 +218,7 @@ the original graph:
 - Phase 14B expands the complex strategy library with `short_iron_condor`: a credit, defined-risk, four-leg structure with simplified max-profit/max-loss, breakevens, cash-risk, margin, scenario PnL, report, and tool support.
 - Phase 15 improves credit strategy execution realism: `short_iron_condor` now reports executable credit from bid/ask, credit slippage, execution-adjusted max loss/margin, credit/wing-width and credit/max-loss ratios, and optional no-trade filters (`min_credit_pct_of_wing_width`, `max_bid_ask_spread_pct`).
 - Phase 16 adds volatility-surface diagnostics: moneyness IV buckets, risk-reversal/smile-curvature proxies, term-regime shape, and report/tool/prompt exposure so agents can tie structures to skew and term structure instead of only ATM IV.
+- Phase 17 adds a deterministic strategy selector/ranking layer that maps volatility-surface regime, directional/volatility view, execution quality, simplified margin, risk-budget pass/fail, and credit filters into ranked candidate/watch/no-trade structures.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 

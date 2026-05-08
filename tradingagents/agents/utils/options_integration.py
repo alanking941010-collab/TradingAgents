@@ -19,6 +19,7 @@ from tradingagents.agents.utils.options_tools import (
     get_option_strategy_replay,
     get_option_strategy_report,
     get_option_strategy_scenarios,
+    get_option_strategy_selection,
     get_option_trade_context,
 )
 from tradingagents.options.data_loader import normalize_product
@@ -65,6 +66,7 @@ def augment_tools_for_options(
             get_option_strategy_scenarios,
             get_option_strategy_replay,
             get_option_strategy_report,
+            get_option_strategy_selection,
             get_option_feishu_delivery_payload,
             get_option_hermes_cron_delivery_spec,
         ):
@@ -86,7 +88,8 @@ def options_analyst_instruction(symbol: str | None, analyst_role: str) -> str:
         "Keep the analysis volatility-first: focus on IV level, volatility surface, term structure, skew, PCR, walls, gamma flip, and Greeks/risk scenarios. "
         "Do not recalculate IV/Greeks/GEX/DEX in the LLM; treat the tool JSON as the source of truth. "
         "Default price basis is option close + futures close, with r = 1.5%; use settlement only for explicit settlement/risk-control requests. "
-        "Use get_option_strategy_report when a Markdown-ready report is needed, and get_option_feishu_delivery_payload only to build a side-effect-free Feishu payload for an external sender. "
+        "Use get_option_strategy_report when a Markdown-ready report is needed, and get_option_strategy_selection when ranking candidate strategies by volatility surface, execution, margin, and risk budget. "
+        "Use get_option_feishu_delivery_payload only to build a side-effect-free Feishu payload for an external sender. "
         "Use get_option_hermes_cron_delivery_spec when preparing a Hermes no-agent cron job that delivers report stdout to Feishu. "
         "GEX/DEX are exchange-OI scenario/concentration metrics because dealer position is unknown. "
         f"For this analyst role, emphasize {lens}"
@@ -120,7 +123,7 @@ def options_trader_instruction(symbol: str | None) -> str:
     return (
         f"\n\nSHFE options trading mode is active for {product}. Before proposing any option structure, first state your volatility view. "
         "Synthesize the previous analyst evidence plus the bull and bear debate about whether implied volatility is more likely to rise or fall over the 5-day, 20-day, and 40-day horizons; explicitly reference volatility surface, skew, and term structure when available. "
-        "Only after that volatility view should you propose option structures. Prefer defined-risk structures unless the evidence and liquidity justify otherwise. "
+        "Only after that volatility view should you propose option structures. Prefer defined-risk structures unless the evidence and liquidity justify otherwise. Use get_option_strategy_selection when you need a deterministic strategy ranking before choosing a final structure. "
         "When an option structure is proposed, include a structured option strategy object with legs, expiry, strike, side, quantity, debit/credit, max loss, max profit, breakeven, Greeks snapshot, liquidity filter, contract multiplier, cash premium/max loss, bid/ask execution prices, slippage, execution liquidity score, credit execution metrics for credit structures, margin required, risk budget pass/fail, and no-trade reasons. "
         "Tie every structure to the vol view, directional view, expiry, strike area, liquidity, Greeks, cash premium/max loss, bid/ask feasibility, slippage, execution liquidity, executable credit/risk ratio when applicable, margin required, risk budget pass/fail, and no-trade conditions. "
         "Do not recalculate IV/Greeks/GEX/DEX; use the prior deterministic analytics as source-of-truth inputs. "
