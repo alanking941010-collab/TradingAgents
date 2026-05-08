@@ -16,6 +16,7 @@ from langchain_core.tools import tool
 from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE, analyze_option_chain
 from tradingagents.options.models import EnrichedOptionQuote, OptionAnalyticsReport
 from tradingagents.options.replay import build_option_strategy_replay
+from tradingagents.options.reports import build_feishu_delivery_payload, build_option_strategy_report
 from tradingagents.options.scenarios import build_option_strategy_scenarios
 from tradingagents.options.strategies import build_option_strategy_candidate
 
@@ -284,6 +285,57 @@ def get_option_strategy_replay(
             expiry=expiry,
             risk_budget_cash=risk_budget_cash,
         ),
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+@tool
+def get_option_strategy_report(
+    symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
+    trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
+    expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
+    review_dates: Annotated[list[str] | None, "Optional historical review dates for replay section"] = None,
+    risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY"] = None,
+) -> str:
+    """Return a Feishu-ready Markdown report pipeline JSON for one structured option strategy."""
+    return json.dumps(
+        build_option_strategy_report(
+            symbol,
+            strategy_type=strategy_type,
+            trade_date=trade_date,
+            expiry=expiry,
+            review_dates=review_dates,
+            risk_budget_cash=risk_budget_cash,
+        ),
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+@tool
+def get_option_feishu_delivery_payload(
+    symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
+    trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
+    expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
+    review_dates: Annotated[list[str] | None, "Optional historical review dates for replay section"] = None,
+    risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY"] = None,
+    target: Annotated[str | None, "Feishu/Hermes target, e.g. feishu:oc_xxx"] = None,
+    dry_run: Annotated[bool, "When true, build a side-effect-free payload without sending"] = True,
+) -> str:
+    """Return a side-effect-free Feishu delivery payload for the option report."""
+    report = build_option_strategy_report(
+        symbol,
+        strategy_type=strategy_type,
+        trade_date=trade_date,
+        expiry=expiry,
+        review_dates=review_dates,
+        risk_budget_cash=risk_budget_cash,
+    )
+    return json.dumps(
+        build_feishu_delivery_payload(report, target=target, dry_run=dry_run),
         ensure_ascii=False,
         default=str,
     )

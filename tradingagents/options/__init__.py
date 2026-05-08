@@ -9,10 +9,13 @@ from tradingagents.options.analytics import analyze_option_chain
 from tradingagents.options.contract_specs import contract_multiplier_for_product, multiplier_unit_for_product
 from tradingagents.options.data_loader import load_option_chain_snapshot
 from tradingagents.options.pricing import black76_price, implied_volatility
+from tradingagents.options.reports import build_feishu_delivery_payload, build_option_strategy_report
 
 __all__ = [
     "analyze_option_chain",
     "black76_price",
+    "build_feishu_delivery_payload",
+    "build_option_strategy_report",
     "contract_multiplier_for_product",
     "implied_volatility",
     "load_option_chain_snapshot",
