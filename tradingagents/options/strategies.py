@@ -158,6 +158,77 @@ def _net_execution_premium(legs: list[dict[str, Any]]) -> float:
     return sum(_signed_multiplier(leg) * float(leg.get("execution_price") or leg.get("price") or 0.0) for leg in legs)
 
 
+def _short_iron_condor_wing_width(legs: list[dict[str, Any]]) -> float | None:
+    put_strikes = sorted(float(leg["strike"]) for leg in legs if leg["call_put"] == "P")
+    call_strikes = sorted(float(leg["strike"]) for leg in legs if leg["call_put"] == "C")
+    if len(put_strikes) != 2 or len(call_strikes) != 2:
+        return None
+    put_width = put_strikes[1] - put_strikes[0]
+    call_width = call_strikes[1] - call_strikes[0]
+    return max(put_width, call_width)
+
+
+def _credit_execution_fields(
+    *,
+    strategy_type: str,
+    legs: list[dict[str, Any]],
+    net_mid_premium: float,
+    execution: dict[str, Any],
+    contract_multiplier: int,
+    min_credit_pct_of_wing_width: float | None,
+    max_bid_ask_spread_pct: float | None,
+) -> dict[str, Any] | None:
+    """Return execution-adjusted credit/risk metrics for defined-risk credit structures."""
+    if strategy_type != "short_iron_condor":
+        return None
+
+    wing_width = _short_iron_condor_wing_width(legs)
+    net_execution = float(execution.get("net_execution_premium") or 0.0)
+    mid_credit = max(-float(net_mid_premium), 0.0)
+    executable_credit = max(-net_execution, 0.0)
+    max_loss_at_execution = max(float(wing_width or 0.0) - executable_credit, 0.0) if wing_width is not None else None
+    credit_slippage = max(mid_credit - executable_credit, 0.0)
+    credit_pct_of_wing = executable_credit / wing_width if wing_width else None
+    credit_to_max_loss = executable_credit / max_loss_at_execution if max_loss_at_execution else None
+    filters_enabled = min_credit_pct_of_wing_width is not None or max_bid_ask_spread_pct is not None
+    no_trade_reasons: list[str] = []
+
+    if filters_enabled and not execution.get("bid_ask_complete"):
+        no_trade_reasons.append("bid/ask incomplete for executable credit")
+    if filters_enabled and executable_credit <= 0:
+        no_trade_reasons.append("executable_credit_points is non-positive")
+    if min_credit_pct_of_wing_width is not None:
+        if credit_pct_of_wing is None or credit_pct_of_wing < float(min_credit_pct_of_wing_width):
+            no_trade_reasons.append("executable_credit_pct_of_wing_width below min_credit_pct_of_wing_width")
+    if max_bid_ask_spread_pct is not None:
+        observed = execution.get("max_bid_ask_spread_pct")
+        if observed is None:
+            no_trade_reasons.append("max_bid_ask_spread_pct unavailable for threshold check")
+        elif float(observed) > float(max_bid_ask_spread_pct):
+            no_trade_reasons.append("max_bid_ask_spread_pct exceeds threshold")
+
+    return {
+        "applies": True,
+        "basis": "sell_bid_buy_ask" if execution.get("bid_ask_complete") else "analysis_price_proxy",
+        "mid_credit_points": _round(mid_credit, 4),
+        "executable_credit_points": _round(executable_credit, 4),
+        "credit_slippage_points": _round(credit_slippage, 4),
+        "credit_slippage_cash": _cash(credit_slippage, contract_multiplier),
+        "wing_width_points": _round(wing_width, 4) if wing_width is not None else None,
+        "max_loss_at_execution_points": _round(max_loss_at_execution, 4) if max_loss_at_execution is not None else None,
+        "executable_credit_cash": _cash(executable_credit, contract_multiplier),
+        "max_loss_at_execution_cash": _cash(max_loss_at_execution, contract_multiplier) if max_loss_at_execution is not None else None,
+        "executable_credit_pct_of_wing_width": _round(credit_pct_of_wing, 8) if credit_pct_of_wing is not None else None,
+        "executable_credit_to_max_loss_at_execution": _round(credit_to_max_loss, 8) if credit_to_max_loss is not None else None,
+        "quality_filters_enabled": filters_enabled,
+        "min_credit_pct_of_wing_width": min_credit_pct_of_wing_width,
+        "max_bid_ask_spread_pct_threshold": max_bid_ask_spread_pct,
+        "passes_credit_quality": (not no_trade_reasons) if filters_enabled else None,
+        "no_trade_reasons": no_trade_reasons,
+        "note": "For defined-risk credit structures, executable credit sells short legs at bid and buys wings at ask when bid/ask are available; this remains a pre-trade feasibility proxy, not a live fill guarantee.",
+    }
+
+
 def _execution_summary(
     legs: list[dict[str, Any]],
     net_mid_premium: float,
@@ -365,18 +436,24 @@ def _margin_fields(
     payoff: dict[str, Any],
     execution: dict[str, Any],
     cash_risk: dict[str, Any],
+    credit_execution: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a simplified pre-trade margin estimate for defined-risk structures."""
     contract_multiplier = int(cash_risk.get("contract_multiplier") or 1)
     net_execution_premium = execution.get("net_execution_premium")
     max_loss = payoff.get("max_loss")
-    if max_loss is None:
+    if credit_execution is not None and credit_execution.get("max_loss_at_execution_cash") is not None:
+        max_loss_at_execution_cash = credit_execution.get("max_loss_at_execution_cash")
+        max_loss_at_execution = float(max_loss_at_execution_cash) / contract_multiplier if contract_multiplier else None
+    elif max_loss is None:
         max_loss_at_execution = None
+        max_loss_at_execution_cash = None
     elif net_execution_premium is not None and float(net_execution_premium) > 0:
         max_loss_at_execution = max(float(max_loss), float(net_execution_premium))
+        max_loss_at_execution_cash = _cash(max_loss_at_execution, contract_multiplier)
     else:
         max_loss_at_execution = float(max_loss)
-    max_loss_at_execution_cash = _cash(max_loss_at_execution, contract_multiplier) if max_loss_at_execution is not None else None
+        max_loss_at_execution_cash = _cash(max_loss_at_execution, contract_multiplier)
     margin_required_cash = max_loss_at_execution_cash
     underlying_notional = cash_risk.get("underlying_notional_per_lot")
     return {
@@ -390,7 +467,7 @@ def _margin_fields(
         "margin_required_pct_of_notional": _round(margin_required_cash / underlying_notional, 8) if margin_required_cash is not None and underlying_notional else None,
         "notes": [
             "Current simplified margin model covers supported defined-risk option structures.",
-            "Margin required uses execution-adjusted max loss for debit structures when bid/ask execution premium is available; credit structures currently use the mid-price max-loss estimate.",
+            "Margin required uses execution-adjusted max loss when bid/ask execution premium or executable credit is available; this remains a pre-trade feasibility proxy.",
             "Exchange/SPAN margin, offsets, fees, and broker-specific add-ons are not modeled.",
         ],
     }
@@ -401,13 +478,18 @@ def _risk_budget_fields(
     margin: dict[str, Any],
     cash_risk: dict[str, Any],
     risk_budget_cash: float | None,
+    execution_no_trade_reasons: list[str] | None = None,
 ) -> dict[str, Any]:
     margin_required = margin.get("margin_required_cash")
     max_loss_cash = cash_risk.get("max_loss_cash")
-    reasons: list[str] = []
+    reasons: list[str] = list(execution_no_trade_reasons or [])
     if risk_budget_cash is None:
-        status = "not_provided"
-        passes = None
+        if reasons:
+            status = "fail"
+            passes = False
+        else:
+            status = "not_provided"
+            passes = None
     else:
         if margin_required is not None and margin_required > risk_budget_cash:
             reasons.append("margin_required_cash exceeds risk_budget_cash")
@@ -434,6 +516,8 @@ def build_option_strategy_candidate(
     min_open_interest: float = 1000.0,
     min_volume: float = 100.0,
     risk_budget_cash: float | None = None,
+    min_credit_pct_of_wing_width: float | None = None,
+    max_bid_ask_spread_pct: float | None = None,
 ) -> dict[str, Any]:
     """Build one deterministic, auditable option strategy candidate.
 
@@ -454,6 +538,15 @@ def build_option_strategy_candidate(
     payoff = _payoff(normalized_strategy, legs, net)
     liquidity = _liquidity(legs, min_open_interest, min_volume)
     execution = _execution_summary(legs, net, contract_multiplier, liquidity)
+    credit_execution = _credit_execution_fields(
+        strategy_type=normalized_strategy,
+        legs=legs,
+        net_mid_premium=net,
+        execution=execution,
+        contract_multiplier=contract_multiplier,
+        min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
+        max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+    )
     cash_risk = _cash_risk_fields(
         net_premium=net,
         max_loss=payoff["max_loss"],
@@ -468,11 +561,13 @@ def build_option_strategy_candidate(
         payoff=payoff,
         execution=execution,
         cash_risk=cash_risk,
+        credit_execution=credit_execution,
     )
     risk_budget = _risk_budget_fields(
         margin=margin,
         cash_risk=cash_risk,
         risk_budget_cash=risk_budget_cash,
+        execution_no_trade_reasons=credit_execution.get("no_trade_reasons") if credit_execution else None,
     )
     maturity = legs[0]["expiry"] if legs else None
     return {
@@ -495,6 +590,7 @@ def build_option_strategy_candidate(
         "greeks": _net_greeks(legs),
         "liquidity": liquidity,
         "execution": execution,
+        "credit_execution": credit_execution,
         "margin": margin,
         "risk_budget": risk_budget,
         "assumptions": {

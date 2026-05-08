@@ -118,6 +118,7 @@ def build_option_analytics_payload(
             "gex_dex_note": "Exchange OI does not reveal true dealer inventory; GEX/DEX are scenario/concentration metrics.",
             "contract_multiplier_note": "Strategy/scenario tools apply static SHFE contract multipliers to premium/risk/PnL cash fields.",
             "execution_liquidity_note": "When bid/ask snapshots are available, strategy tools include execution price, slippage, and execution liquidity score; otherwise bid/ask fields remain null and execution is proxy-based.",
+            "credit_execution_note": "Defined-risk credit structures such as short_iron_condor include executable credit, credit slippage, execution-adjusted max loss, and optional credit/width and bid/ask spread no-trade filters.",
             "margin_note": "Strategy/scenario tools include simplified defined-risk margin required and risk budget pass/fail fields; exchange/SPAN margin is not modeled.",
         },
         "options": [_enriched_option_to_dict(row) for row in report.options],
@@ -224,6 +225,8 @@ def get_option_strategy_candidate(
     trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
     risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY for max-loss utilization"] = None,
+    min_credit_pct_of_wing_width: Annotated[float | None, "Optional credit quality filter for defined-risk credit structures; executable credit divided by wing width must be at least this ratio"] = None,
+    max_bid_ask_spread_pct: Annotated[float | None, "Optional bid/ask quality filter; maximum leg bid/ask spread percentage must be at or below this ratio"] = None,
 ) -> str:
     """Return a structured option strategy candidate JSON with legs/payoff/Greeks/liquidity/cash risk."""
     return json.dumps(
@@ -233,6 +236,8 @@ def get_option_strategy_candidate(
             trade_date=trade_date,
             expiry=expiry,
             risk_budget_cash=risk_budget_cash,
+            min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
+            max_bid_ask_spread_pct=max_bid_ask_spread_pct,
         ),
         ensure_ascii=False,
         default=str,

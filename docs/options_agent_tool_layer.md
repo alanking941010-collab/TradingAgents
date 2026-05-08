@@ -15,8 +15,8 @@ volatility-first:
 - `bear_researcher`: bearish directional or bearish-volatility structures supported by data.
 - `research_manager`: adjudicate the bull/bear volatility debate and preserve a 5/20/40-day vol path handoff for the trader.
 - `trader`: first state the volatility view, then convert it into structured option strategies with auditable legs/payoff/risk/execution fields.
-- `risk_manager`: stress-test Greeks, gamma/theta, vega, liquidity, bid/ask feasibility, slippage, execution liquidity, expiry, margin required, risk budget pass/fail, contract-multiplier cash risk, scenario PnL, breakeven proximity, and no-trade filters.
-- `portfolio_manager`: decide trade/watch/no-trade with scenario PnL assessment, cash risk-budget utilization, margin checks, options risk assessment, execution liquidity checks, no-trade conditions, and assumptions.
+- `risk_manager`: stress-test Greeks, gamma/theta, vega, liquidity, bid/ask feasibility, slippage, execution liquidity, expiry, margin required, risk budget pass/fail, contract-multiplier cash risk, credit execution quality, scenario PnL, breakeven proximity, and no-trade filters.
+- `portfolio_manager`: decide trade/watch/no-trade with scenario PnL assessment, cash risk-budget utilization, margin checks, options risk assessment, execution liquidity checks, credit/risk quality checks, no-trade conditions, and assumptions.
 
 LLMs should interpret the structured results. They should not calculate IV,
 Greeks, GEX, DEX, PCR, walls, or gamma flip from raw prices.
@@ -71,8 +71,9 @@ The structurer returns an auditable object with:
 - net `greeks` snapshot.
 - `liquidity` filter based on min volume/OI.
 - `execution`: bid/ask completeness, net mid premium, net execution premium, slippage points/cash, spread metrics, and a 0-100 execution liquidity score.
-- `margin`: simplified defined-risk margin required, using execution-adjusted max loss when bid/ask execution premium is available.
-- `risk_budget`: pass/fail/not-provided status, margin/max-loss utilization, and no-trade reasons when the budget is breached.
+- `credit_execution`: for supported credit structures such as `short_iron_condor`, executable credit (`SELL` legs at bid, `BUY` wings at ask), credit slippage, wing width, execution-adjusted max loss, credit/wing-width ratio, credit/max-loss ratio, optional quality-filter status, and no-trade reasons.
+- `margin`: simplified defined-risk margin required, using execution-adjusted max loss when bid/ask execution premium or executable credit is available.
+- `risk_budget`: pass/fail/not-provided status, margin/max-loss utilization, and no-trade reasons when the budget or optional execution-quality filters are breached.
 - assumptions including `option close + futures close` and `contract_multiplier_applied=True`.
 - `cash_risk`: contract multiplier, net premium cash, max loss cash, max profit cash, underlying notional per lot, and risk-budget utilization when provided.
 
@@ -184,6 +185,7 @@ the original graph:
 - Phase 13 adds a report pipeline and Feishu delivery handoff: agents can build a Markdown strategy report plus a side-effect-free Feishu payload, but the code does not publish messages by itself.
 - Phase 14A adds a live-delivery boundary and Hermes cron-ready script: injected sender callables can perform verified sends, and no-agent cron can deliver report Markdown stdout to Feishu targets while saving audit artifacts.
 - Phase 14B expands the complex strategy library with `short_iron_condor`: a credit, defined-risk, four-leg structure with simplified max-profit/max-loss, breakevens, cash-risk, margin, scenario PnL, report, and tool support.
+- Phase 15 improves credit strategy execution realism: `short_iron_condor` now reports executable credit from bid/ask, credit slippage, execution-adjusted max loss/margin, credit/wing-width and credit/max-loss ratios, and optional no-trade filters (`min_credit_pct_of_wing_width`, `max_bid_ask_spread_pct`).
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -195,7 +197,8 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Settlement basis is only for explicit settlement/risk-control requests.
 - GEX/DEX are scenario/concentration metrics inferred from exchange OI; exchange OI does not reveal verified dealer inventory.
 - Contract multipliers are applied from static SHFE futures contract specifications for cash premium, max loss, max profit, notional, and scenario PnL fields. Option-price-point fields remain available for audit.
-- Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures and mid-price max loss for supported credit structures such as `short_iron_condor`; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
+- Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures and, for `short_iron_condor`, execution-adjusted max loss based on executable credit when bid/ask are available; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
+- Credit execution model: supported credit structures use bid/ask feasibility (`SELL` at bid, `BUY` at ask) to report executable credit, credit slippage, credit/wing-width ratio, and optional no-trade filters. This is still an indicative pre-trade proxy, not a guaranteed live fill.
 - Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled.
 - Report/delivery model: reports are Markdown + audit payloads; Feishu payloads are side-effect-free handoffs and require an external sender to publish. Phase 14A live sends require an injected sender callable, while scheduled Hermes delivery should use no-agent cron with `scripts/deliver_option_strategy_report.py --stdout message`.
 

@@ -76,6 +76,7 @@ def _render_markdown(
     margin = strategy.get("margin", {})
     risk_budget = strategy.get("risk_budget", {})
     execution = strategy.get("execution", {})
+    credit_execution = strategy.get("credit_execution") or {}
     scenario_summary = scenarios.get("summary", {})
 
     lines = [
@@ -94,6 +95,9 @@ def _render_markdown(
         f"- Net premium: {_fmt_points(strategy.get('net_premium'))} / {_fmt_cash(cash_risk.get('net_premium_cash'))}",
         f"- Max loss: {_fmt_points(strategy.get('max_loss'))} / {_fmt_cash(cash_risk.get('max_loss_cash'))}",
         f"- Max profit: {_fmt_points(strategy.get('max_profit'))} / {_fmt_cash(cash_risk.get('max_profit_cash'))}",
+        f"- Executable credit: {_fmt_points(credit_execution.get('executable_credit_points'))} / {_fmt_cash(credit_execution.get('executable_credit_cash'))}",
+        f"- Max loss at executable credit: {_fmt_points(credit_execution.get('max_loss_at_execution_points'))} / {_fmt_cash(credit_execution.get('max_loss_at_execution_cash'))}",
+        f"- Credit / wing width: {_fmt_pct(credit_execution.get('executable_credit_pct_of_wing_width'))}; credit / executable max loss: {_fmt_pct(credit_execution.get('executable_credit_to_max_loss_at_execution'))}",
         f"- Breakevens: {strategy.get('breakevens')}",
         f"- Margin required: {_fmt_cash(margin.get('margin_required_cash'))}",
         f"- Risk budget: {_fmt_cash(risk_budget_cash)} / status `{risk_budget.get('status')}`",
@@ -207,6 +211,9 @@ def build_option_strategy_report(
             "margin_required_cash": strategy.get("margin", {}).get("margin_required_cash"),
             "risk_budget_status": strategy.get("risk_budget", {}).get("status"),
             "execution_liquidity_grade": strategy.get("execution", {}).get("execution_liquidity_grade"),
+            "executable_credit_cash": strategy.get("credit_execution", {}).get("executable_credit_cash") if strategy.get("credit_execution") else None,
+            "max_loss_at_execution_cash": strategy.get("credit_execution", {}).get("max_loss_at_execution_cash") if strategy.get("credit_execution") else None,
+            "credit_pct_of_wing_width": strategy.get("credit_execution", {}).get("executable_credit_pct_of_wing_width") if strategy.get("credit_execution") else None,
             "worst_scenario_pnl_cash": scenarios.get("summary", {}).get("worst_pnl_cash"),
             "replay_final_pnl_cash": replay.get("summary", {}).get("final_pnl_cash") if replay else None,
         },
