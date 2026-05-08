@@ -55,6 +55,8 @@ It currently supports:
 - `bear_put_spread`
 - `long_straddle`
 - `long_strangle`
+- `long_call_butterfly`
+- `long_put_butterfly`
 
 The structurer returns an auditable object with:
 
@@ -113,6 +115,7 @@ the original graph:
 - `portfolio_manager` renders optional `Scenario PnL Assessment`, `Options Risk Assessment`, and `No-Trade Conditions`, forcing final approval to be tied to the deterministic stress matrix, cash risk budget, and executable liquidity.
 - Phase 9 adds bid/ask-aware execution fields. When `vw_shfe_option_chain_latest` exposes `bid`/`ask`, or when `akshare_option_snapshot` can be joined by trade date, metal, contract month, strike, and call/put, strategy candidates use `BUY` at ask and `SELL` at bid to estimate execution premium and slippage. When bid/ask is missing, execution fields fall back to the analysis price and mark bid/ask completeness as false.
 - Phase 10 adds simplified margin/risk-budget checks for the currently supported defined-risk structures. It reports `margin_required_cash`, `margin_required_pct_of_notional`, `margin_pct_of_risk_budget`, risk budget pass/fail, and explicit no-trade reasons. This is a pre-trade feasibility check, not an exchange/SPAN margin engine.
+- Phase 11 begins the complex strategy expansion with long call/put butterflies: three-leg structures with 1x long lower strike, 2x short middle strike, and 1x long upper strike, including deterministic payoff, margin, scenario PnL, and tool-schema support.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 

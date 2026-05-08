@@ -20,6 +20,8 @@ _SUPPORTED_STRATEGIES = {
     "bear_put_spread",
     "long_straddle",
     "long_strangle",
+    "long_call_butterfly",
+    "long_put_butterfly",
 }
 
 
@@ -235,6 +237,22 @@ def _structure_legs(
         lower = _next_lower(strikes, atm)
         upper = _next_higher(strikes, atm)
         return [_leg(_row_at(rows, "C", upper), "BUY", contract_multiplier=contract_multiplier), _leg(_row_at(rows, "P", lower), "BUY", contract_multiplier=contract_multiplier)]
+    if strategy_type == "long_call_butterfly":
+        lower = _next_lower(strikes, atm)
+        upper = _next_higher(strikes, atm)
+        return [
+            _leg(_row_at(rows, "C", lower), "BUY", contract_multiplier=contract_multiplier),
+            _leg(_row_at(rows, "C", atm), "SELL", quantity=2, contract_multiplier=contract_multiplier),
+            _leg(_row_at(rows, "C", upper), "BUY", contract_multiplier=contract_multiplier),
+        ]
+    if strategy_type == "long_put_butterfly":
+        lower = _next_lower(strikes, atm)
+        upper = _next_higher(strikes, atm)
+        return [
+            _leg(_row_at(rows, "P", lower), "BUY", contract_multiplier=contract_multiplier),
+            _leg(_row_at(rows, "P", atm), "SELL", quantity=2, contract_multiplier=contract_multiplier),
+            _leg(_row_at(rows, "P", upper), "BUY", contract_multiplier=contract_multiplier),
+        ]
     raise ValueError(f"Unsupported strategy_type={strategy_type!r}")
 
 
@@ -256,6 +274,13 @@ def _payoff(strategy_type: str, legs: list[dict[str, Any]], net_premium: float) 
         max_loss = max(net_premium, 0.0)
         max_profit = None
         breakevens = [min(strikes) - net_premium, max(strikes) + net_premium]
+    elif strategy_type in {"long_call_butterfly", "long_put_butterfly"}:
+        ordered = sorted(strikes)
+        lower, middle, upper = ordered[0], ordered[1], ordered[2]
+        width = min(middle - lower, upper - middle)
+        max_loss = max(net_premium, 0.0)
+        max_profit = max(width - net_premium, 0.0)
+        breakevens = [lower + net_premium, upper - net_premium]
     else:
         max_loss = None
         max_profit = None

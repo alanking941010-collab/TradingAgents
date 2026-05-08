@@ -217,7 +217,7 @@ def get_option_analytics_report(
 @tool
 def get_option_strategy_candidate(
     symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
-    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
     trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
     risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY for max-loss utilization"] = None,
@@ -239,7 +239,7 @@ def get_option_strategy_candidate(
 @tool
 def get_option_strategy_scenarios(
     symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
-    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
     trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
     price_shocks: Annotated[list[float] | None, "Underlying shocks, e.g. [-0.03, 0, 0.03]"] = None,
