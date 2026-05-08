@@ -82,7 +82,21 @@ def _cash(value: float | None, contract_multiplier: int, digits: int = 4) -> flo
 def _leg(row: EnrichedOptionQuote, side: str, quantity: int = 1, contract_multiplier: int = 1) -> dict[str, Any]:
     greeks = row.greeks
     price = row.quote.mid_price
+    bid = row.quote.bid if row.quote.bid is not None and row.quote.bid > 0 else None
+    ask = row.quote.ask if row.quote.ask is not None and row.quote.ask > 0 else None
+    bid_ask_mid = row.quote.bid_ask_mid
+    bid_ask_spread = row.quote.bid_ask_spread
+    bid_ask_spread_pct = row.quote.bid_ask_spread_pct
+    if side == "BUY":
+        execution_price = ask if ask is not None else price
+        execution_basis = "ask" if ask is not None else "analysis_price_proxy"
+        slippage_points = max(float(execution_price or 0.0) - float(price or 0.0), 0.0)
+    else:
+        execution_price = bid if bid is not None else price
+        execution_basis = "bid" if bid is not None else "analysis_price_proxy"
+        slippage_points = max(float(price or 0.0) - float(execution_price or 0.0), 0.0)
     signed_price = (1 if side == "BUY" else -1) * quantity * float(price or 0.0)
+    signed_execution_price = (1 if side == "BUY" else -1) * quantity * float(execution_price or 0.0)
     return {
         "ts_code": row.quote.ts_code,
         "side": side,
@@ -92,6 +106,16 @@ def _leg(row: EnrichedOptionQuote, side: str, quantity: int = 1, contract_multip
         "expiry": row.quote.maturity_date,
         "price": price,
         "price_basis": "close" if row.quote.close is not None and row.quote.close > 0 else "settle_fallback",
+        "bid": bid,
+        "ask": ask,
+        "bid_ask_mid": _round(bid_ask_mid, 4) if bid_ask_mid is not None else None,
+        "bid_ask_spread": _round(bid_ask_spread, 4) if bid_ask_spread is not None else None,
+        "bid_ask_spread_pct": _round(bid_ask_spread_pct, 8) if bid_ask_spread_pct is not None else None,
+        "execution_price": execution_price,
+        "execution_price_basis": execution_basis,
+        "slippage_points": _round(slippage_points, 4),
+        "slippage_cash": _cash(slippage_points * quantity, contract_multiplier),
+        "signed_execution_premium_cash": _cash(signed_execution_price, contract_multiplier),
         "contract_multiplier": contract_multiplier,
         "premium_cash": _cash(float(price or 0.0) * quantity, contract_multiplier),
         "signed_premium_cash": _cash(signed_price, contract_multiplier),
@@ -111,6 +135,61 @@ def _signed_multiplier(leg: dict[str, Any]) -> int:
 
 def _net_premium(legs: list[dict[str, Any]]) -> float:
     return sum(_signed_multiplier(leg) * float(leg["price"] or 0.0) for leg in legs)
+
+
+def _net_execution_premium(legs: list[dict[str, Any]]) -> float:
+    return sum(_signed_multiplier(leg) * float(leg.get("execution_price") or leg.get("price") or 0.0) for leg in legs)
+
+
+def _execution_summary(
+    legs: list[dict[str, Any]],
+    net_mid_premium: float,
+    contract_multiplier: int,
+    liquidity: dict[str, Any],
+) -> dict[str, Any]:
+    net_execution = _round(_net_execution_premium(legs), 4) or 0.0
+    slippage_points = _round(sum(float(leg.get("slippage_points") or 0.0) * int(leg.get("quantity") or 1) for leg in legs), 4) or 0.0
+    spread_pcts = [float(leg["bid_ask_spread_pct"]) for leg in legs if leg.get("bid_ask_spread_pct") is not None]
+    bid_ask_complete = all(leg.get("bid") is not None and leg.get("ask") is not None for leg in legs)
+    avg_spread_pct = _round(sum(spread_pcts) / len(spread_pcts), 8) if spread_pcts else None
+    max_spread_pct = _round(max(spread_pcts), 8) if spread_pcts else None
+    slippage_pct = _round(slippage_points / abs(net_mid_premium), 8) if net_mid_premium else None
+
+    score = 100.0
+    if not bid_ask_complete:
+        score -= 30.0
+    if not liquidity.get("passes"):
+        score -= 25.0
+    if avg_spread_pct is not None:
+        score -= min(avg_spread_pct * 500.0, 35.0)
+    else:
+        score -= 15.0
+    if slippage_pct is not None:
+        score -= min(slippage_pct * 400.0, 35.0)
+    else:
+        score -= 10.0
+    score = max(0.0, min(100.0, score))
+    if score >= 80:
+        grade = "good"
+    elif score >= 60:
+        grade = "acceptable"
+    elif score >= 40:
+        grade = "weak"
+    else:
+        grade = "poor"
+    return {
+        "bid_ask_complete": bid_ask_complete,
+        "net_mid_premium": net_mid_premium,
+        "net_execution_premium": net_execution,
+        "slippage_points": slippage_points,
+        "slippage_cash": _cash(slippage_points, contract_multiplier),
+        "slippage_pct_of_mid_premium": slippage_pct,
+        "avg_bid_ask_spread_pct": avg_spread_pct,
+        "max_bid_ask_spread_pct": max_spread_pct,
+        "execution_liquidity_score": _round(score, 4),
+        "execution_liquidity_grade": grade,
+        "scoring_note": "Score combines bid/ask completeness, quoted spread, slippage from mid/close analysis price, and exchange volume/OI filters; it is a pre-trade feasibility proxy, not a live executable quote.",
+    }
 
 
 def _net_greeks(legs: list[dict[str, Any]]) -> dict[str, float | None]:
@@ -243,6 +322,8 @@ def build_option_strategy_candidate(
     legs = _structure_legs(normalized_strategy, rows, report.underlying_price, contract_multiplier)
     net = _round(_net_premium(legs), 4) or 0.0
     payoff = _payoff(normalized_strategy, legs, net)
+    liquidity = _liquidity(legs, min_open_interest, min_volume)
+    execution = _execution_summary(legs, net, contract_multiplier, liquidity)
     maturity = legs[0]["expiry"] if legs else None
     return {
         "strategy_type": normalized_strategy,
@@ -270,12 +351,13 @@ def build_option_strategy_candidate(
             risk_budget_cash=risk_budget_cash,
         ),
         "greeks": _net_greeks(legs),
-        "liquidity": _liquidity(legs, min_open_interest, min_volume),
+        "liquidity": liquidity,
+        "execution": execution,
         "assumptions": {
             "model": "Black-76 futures option model",
             "price_basis": "option close + futures close",
             "contract_multiplier_applied": True,
             "contract_multiplier_source": "static SHFE futures contract specification mapping",
-            "execution_note": "Candidate is analytical only; verify live bid/ask, margin, and exchange rules before trading.",
+            "execution_note": "Candidate is analytical only; verify live bid/ask, slippage, margin, and exchange rules before trading.",
         },
     }

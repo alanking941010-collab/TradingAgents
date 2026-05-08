@@ -87,6 +87,14 @@ def _columns(con: sqlite3.Connection, table_or_view: str) -> set[str]:
     return {row[1] for row in con.execute(f"PRAGMA table_info({table_or_view})").fetchall()}
 
 
+def _table_exists(con: sqlite3.Connection, table_or_view: str) -> bool:
+    row = con.execute(
+        "select 1 from sqlite_master where name=? and type in ('table','view') limit 1",
+        (table_or_view,),
+    ).fetchone()
+    return row is not None
+
+
 def _latest_trade_date(con: sqlite3.Connection, product: str, trade_date: str | None) -> str:
     if trade_date:
         ymd = format_ymd(trade_date)
@@ -121,19 +129,50 @@ def _query_options(
     cols = _columns(con, "vw_shfe_option_chain_latest")
     volume_col = "volume" if "volume" in cols else "vol"
     oi_col = "open_interest" if "open_interest" in cols else "oi"
-    filters = ["upper(metal)=?", "trade_date=?"]
+    has_view_bid_ask = "bid" in cols and "ask" in cols
+    has_snapshot_bid_ask = _table_exists(con, "akshare_option_snapshot") and {
+        "bid",
+        "ask",
+        "metal",
+        "strike",
+        "call_put",
+        "contract_month",
+    }.issubset(_columns(con, "akshare_option_snapshot"))
+    filters = ["upper(o.metal)=?", "o.trade_date=?"]
     params: list[object] = [product, trade_ymd]
     if expiry:
-        filters.append("maturity_date=?")
+        filters.append("o.maturity_date=?")
         params.append(format_ymd(expiry))
+    if has_view_bid_ask:
+        bid_select = "o.bid as bid"
+        ask_select = "o.ask as ask"
+        join_clause = ""
+    elif has_snapshot_bid_ask:
+        bid_select = "q.bid as bid"
+        ask_select = "q.ask as ask"
+        join_clause = """
+        left join akshare_option_snapshot q
+          on upper(q.metal)=upper(o.metal)
+         and q.trade_date=o.trade_date
+         and q.contract_month=substr(replace(upper(o.ts_code), '.SHF', ''), length(upper(o.metal)) + 1, 4)
+         and abs(q.strike - o.strike) < 1e-9
+         and upper(q.call_put)=upper(o.call_put)
+        """
+    else:
+        bid_select = "null as bid"
+        ask_select = "null as ask"
+        join_clause = ""
     sql = f"""
-        select trade_date, ts_code, metal, call_put, strike, maturity_date,
-               underlying_symbol, close, settle,
-               coalesce({volume_col}, 0) as volume,
-               coalesce({oi_col}, 0) as open_interest
-        from vw_shfe_option_chain_latest
+        select o.trade_date, o.ts_code, o.metal, o.call_put, o.strike, o.maturity_date,
+               o.underlying_symbol, o.close, o.settle,
+               coalesce(o.{volume_col}, 0) as volume,
+               coalesce(o.{oi_col}, 0) as open_interest,
+               {bid_select},
+               {ask_select}
+        from vw_shfe_option_chain_latest o
+        {join_clause}
         where {' and '.join(filters)}
-        order by maturity_date, strike, call_put
+        order by o.maturity_date, o.strike, o.call_put
     """
     return con.execute(sql, params).fetchall()
 
@@ -202,6 +241,8 @@ def load_option_chain_snapshot(symbol: str, trade_date: str | None = None, expir
                 volume=float(row["volume"] or 0.0),
                 open_interest=float(row["open_interest"] or 0.0),
                 source="shfe_options.db:vw_shfe_option_chain_latest",
+                bid=None if row["bid"] is None else float(row["bid"]),
+                ask=None if row["ask"] is None else float(row["ask"]),
             )
             for row in rows
         ]

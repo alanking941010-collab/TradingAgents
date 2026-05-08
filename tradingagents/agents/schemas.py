@@ -154,7 +154,8 @@ class TraderProposal(BaseModel):
             "For options trades, an auditable strategy object containing legs, expiry, "
             "strike, side, quantity, debit/credit, max loss, max profit, breakeven, "
             "Greeks snapshot, liquidity filter, contract multiplier, cash premium, "
-            "cash max loss/profit, and risk-budget utilization."
+            "cash max loss/profit, bid/ask execution prices, slippage, execution "
+            "liquidity score, and risk-budget utilization."
         ),
     )
     reasoning: str = Field(

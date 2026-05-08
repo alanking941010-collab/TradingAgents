@@ -21,6 +21,8 @@ class OptionQuote:
     volume: float
     open_interest: float
     source: str
+    bid: float | None = None
+    ask: float | None = None
 
     @property
     def mid_price(self) -> float | None:
@@ -32,6 +34,29 @@ class OptionQuote:
         if self.settle is not None and self.settle > 0:
             return self.settle
         return None
+
+    @property
+    def bid_ask_mid(self) -> float | None:
+        """Return executable quote midpoint when both bid and ask are valid."""
+        if self.bid is not None and self.ask is not None and self.bid > 0 and self.ask > 0 and self.ask >= self.bid:
+            return (self.bid + self.ask) / 2.0
+        return None
+
+    @property
+    def bid_ask_spread(self) -> float | None:
+        """Return quoted bid/ask spread in option-price points."""
+        if self.bid is not None and self.ask is not None and self.bid > 0 and self.ask > 0 and self.ask >= self.bid:
+            return self.ask - self.bid
+        return None
+
+    @property
+    def bid_ask_spread_pct(self) -> float | None:
+        """Return bid/ask spread divided by quoted midpoint."""
+        spread = self.bid_ask_spread
+        mid = self.bid_ask_mid
+        if spread is None or not mid:
+            return None
+        return spread / mid
 
 
 @dataclass(frozen=True)
