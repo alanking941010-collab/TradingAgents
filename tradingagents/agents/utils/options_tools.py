@@ -220,7 +220,7 @@ def get_option_analytics_report(
 @tool
 def get_option_strategy_candidate(
     symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
-    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly, short_iron_condor"],
     trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
     risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY for max-loss utilization"] = None,
@@ -242,7 +242,7 @@ def get_option_strategy_candidate(
 @tool
 def get_option_strategy_scenarios(
     symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
-    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly, short_iron_condor"],
     trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
     price_shocks: Annotated[list[float] | None, "Underlying shocks, e.g. [-0.03, 0, 0.03]"] = None,
@@ -270,7 +270,7 @@ def get_option_strategy_scenarios(
 @tool
 def get_option_strategy_replay(
     symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
-    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly, short_iron_condor"],
     entry_date: Annotated[str, "Entry trade date in yyyy-mm-dd or yyyymmdd format"],
     review_dates: Annotated[list[str] | None, "Historical review dates to mark the same entry legs, e.g. ['2026-05-06']"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
@@ -294,7 +294,7 @@ def get_option_strategy_replay(
 @tool
 def get_option_strategy_report(
     symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
-    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly, short_iron_condor"],
     trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
     review_dates: Annotated[list[str] | None, "Optional historical review dates for replay section"] = None,
@@ -318,7 +318,7 @@ def get_option_strategy_report(
 @tool
 def get_option_feishu_delivery_payload(
     symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
-    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly, short_iron_condor"],
     trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
     review_dates: Annotated[list[str] | None, "Optional historical review dates for replay section"] = None,
@@ -345,7 +345,7 @@ def get_option_feishu_delivery_payload(
 @tool
 def get_option_hermes_cron_delivery_spec(
     symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
-    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly, short_iron_condor"],
     trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
     review_dates: Annotated[list[str] | None, "Optional historical review dates for replay section"] = None,

@@ -61,10 +61,11 @@ It currently supports:
 - `long_strangle`
 - `long_call_butterfly`
 - `long_put_butterfly`
+- `short_iron_condor`
 
 The structurer returns an auditable object with:
 
-- `legs`: each leg has side, quantity, call/put, strike, expiry, option code, price, IV, Greeks, volume, OI, bid/ask when available, execution price (`BUY` at ask / `SELL` at bid), and per-leg slippage.
+- `legs`: each leg has side, quantity, call/put, strike, expiry, option code, price, IV, Greeks, volume, OI, bid/ask when available, execution price (`BUY` at ask / `SELL` at bid), and per-leg slippage. Phase 14B adds `short_iron_condor`, a four-leg credit defined-risk structure that buys the outer put/call wings and sells the inner OTM put/call.
 - `net_premium` and `premium_type` (`debit` / `credit`).
 - `max_loss`, `max_profit`, and `breakevens`.
 - net `greeks` snapshot.
@@ -182,6 +183,7 @@ the original graph:
 - Phase 12 adds historical replay/post-trade review for structured strategies, including a market analyst tool node so agents can mark the same entry legs over review dates.
 - Phase 13 adds a report pipeline and Feishu delivery handoff: agents can build a Markdown strategy report plus a side-effect-free Feishu payload, but the code does not publish messages by itself.
 - Phase 14A adds a live-delivery boundary and Hermes cron-ready script: injected sender callables can perform verified sends, and no-agent cron can deliver report Markdown stdout to Feishu targets while saving audit artifacts.
+- Phase 14B expands the complex strategy library with `short_iron_condor`: a credit, defined-risk, four-leg structure with simplified max-profit/max-loss, breakevens, cash-risk, margin, scenario PnL, report, and tool support.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -193,7 +195,7 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Settlement basis is only for explicit settlement/risk-control requests.
 - GEX/DEX are scenario/concentration metrics inferred from exchange OI; exchange OI does not reveal verified dealer inventory.
 - Contract multipliers are applied from static SHFE futures contract specifications for cash premium, max loss, max profit, notional, and scenario PnL fields. Option-price-point fields remain available for audit.
-- Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
+- Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures and mid-price max loss for supported credit structures such as `short_iron_condor`; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
 - Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled.
 - Report/delivery model: reports are Markdown + audit payloads; Feishu payloads are side-effect-free handoffs and require an external sender to publish. Phase 14A live sends require an injected sender callable, while scheduled Hermes delivery should use no-agent cron with `scripts/deliver_option_strategy_report.py --stdout message`.
 

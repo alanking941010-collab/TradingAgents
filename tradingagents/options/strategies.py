@@ -22,6 +22,7 @@ _SUPPORTED_STRATEGIES = {
     "long_strangle",
     "long_call_butterfly",
     "long_put_butterfly",
+    "short_iron_condor",
 }
 
 
@@ -73,6 +74,20 @@ def _next_lower(strikes: list[float], strike: float) -> float:
         if item < strike:
             return item
     raise ValueError("Cannot find lower strike for spread")
+
+
+def _nth_higher(strikes: list[float], strike: float, n: int) -> float:
+    higher = [item for item in sorted(strikes) if item > strike]
+    if len(higher) < n:
+        raise ValueError(f"Cannot find {n} higher strikes for spread")
+    return higher[n - 1]
+
+
+def _nth_lower(strikes: list[float], strike: float, n: int) -> float:
+    lower = [item for item in sorted(strikes, reverse=True) if item < strike]
+    if len(lower) < n:
+        raise ValueError(f"Cannot find {n} lower strikes for spread")
+    return lower[n - 1]
 
 
 def _cash(value: float | None, contract_multiplier: int, digits: int = 4) -> float | None:
@@ -253,6 +268,17 @@ def _structure_legs(
             _leg(_row_at(rows, "P", atm), "SELL", quantity=2, contract_multiplier=contract_multiplier),
             _leg(_row_at(rows, "P", upper), "BUY", contract_multiplier=contract_multiplier),
         ]
+    if strategy_type == "short_iron_condor":
+        short_put = _nth_lower(strikes, atm, 1)
+        long_put = _nth_lower(strikes, atm, 2)
+        short_call = _nth_higher(strikes, atm, 1)
+        long_call = _nth_higher(strikes, atm, 2)
+        return [
+            _leg(_row_at(rows, "P", long_put), "BUY", contract_multiplier=contract_multiplier),
+            _leg(_row_at(rows, "P", short_put), "SELL", contract_multiplier=contract_multiplier),
+            _leg(_row_at(rows, "C", short_call), "SELL", contract_multiplier=contract_multiplier),
+            _leg(_row_at(rows, "C", long_call), "BUY", contract_multiplier=contract_multiplier),
+        ]
     raise ValueError(f"Unsupported strategy_type={strategy_type!r}")
 
 
@@ -281,6 +307,19 @@ def _payoff(strategy_type: str, legs: list[dict[str, Any]], net_premium: float) 
         max_loss = max(net_premium, 0.0)
         max_profit = max(width - net_premium, 0.0)
         breakevens = [lower + net_premium, upper - net_premium]
+    elif strategy_type == "short_iron_condor":
+        put_strikes = sorted(float(leg["strike"]) for leg in legs if leg["call_put"] == "P")
+        call_strikes = sorted(float(leg["strike"]) for leg in legs if leg["call_put"] == "C")
+        if len(put_strikes) != 2 or len(call_strikes) != 2:
+            raise ValueError("short_iron_condor requires two put strikes and two call strikes")
+        long_put, short_put = put_strikes[0], put_strikes[1]
+        short_call, long_call = call_strikes[0], call_strikes[1]
+        put_width = short_put - long_put
+        call_width = long_call - short_call
+        credit = max(-net_premium, 0.0)
+        max_loss = max(max(put_width, call_width) - credit, 0.0)
+        max_profit = credit
+        breakevens = [short_put - credit, short_call + credit]
     else:
         max_loss = None
         max_profit = None
@@ -350,8 +389,8 @@ def _margin_fields(
         "max_loss_at_execution_cash": max_loss_at_execution_cash,
         "margin_required_pct_of_notional": _round(margin_required_cash / underlying_notional, 8) if margin_required_cash is not None and underlying_notional else None,
         "notes": [
-            "Current simplified margin model covers defined-risk debit option structures only.",
-            "Margin required uses execution-adjusted max loss when bid/ask execution premium is available; otherwise it falls back to close/settle analysis price.",
+            "Current simplified margin model covers supported defined-risk option structures.",
+            "Margin required uses execution-adjusted max loss for debit structures when bid/ask execution premium is available; credit structures currently use the mid-price max-loss estimate.",
             "Exchange/SPAN margin, offsets, fees, and broker-specific add-ons are not modeled.",
         ],
     }
