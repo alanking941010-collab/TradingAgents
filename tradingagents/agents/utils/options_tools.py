@@ -15,6 +15,7 @@ from langchain_core.tools import tool
 
 from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE, analyze_option_chain
 from tradingagents.options.models import EnrichedOptionQuote, OptionAnalyticsReport
+from tradingagents.options.replay import build_option_strategy_replay
 from tradingagents.options.scenarios import build_option_strategy_scenarios
 from tradingagents.options.strategies import build_option_strategy_candidate
 
@@ -257,6 +258,30 @@ def get_option_strategy_scenarios(
             price_shocks=price_shocks or (-0.05, -0.03, -0.01, 0.0, 0.01, 0.03, 0.05),
             iv_shocks=iv_shocks or (-0.05, -0.02, 0.0, 0.02, 0.05),
             days_forward=days_forward or (0, 1, 5, 20),
+            risk_budget_cash=risk_budget_cash,
+        ),
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+@tool
+def get_option_strategy_replay(
+    symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
+    entry_date: Annotated[str, "Entry trade date in yyyy-mm-dd or yyyymmdd format"],
+    review_dates: Annotated[list[str] | None, "Historical review dates to mark the same entry legs, e.g. ['2026-05-06']"] = None,
+    expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
+    risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY for replay utilization"] = None,
+) -> str:
+    """Return historical replay/post-trade review JSON for a structured option strategy."""
+    return json.dumps(
+        build_option_strategy_replay(
+            symbol,
+            strategy_type=strategy_type,
+            entry_date=entry_date,
+            review_dates=review_dates,
+            expiry=expiry,
             risk_budget_cash=risk_budget_cash,
         ),
         ensure_ascii=False,

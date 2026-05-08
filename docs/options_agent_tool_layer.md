@@ -40,6 +40,7 @@ LangChain tools:
 - `get_option_analytics_report`
 - `get_option_strategy_candidate`
 - `get_option_strategy_scenarios`
+- `get_option_strategy_replay`
 
 ## Strategy structurer
 
@@ -100,6 +101,25 @@ of margin required into the scenario matrix.
 portfolio managers can inspect path-dependent payoff behavior instead of only
 reading static Greeks/max-loss fields.
 
+## Historical Replay / Post-Trade Review
+
+Phase 12 adds deterministic replay in:
+
+```text
+tradingagents/options/replay.py
+```
+
+`build_option_strategy_replay` selects the entry structure on `entry_date`, then
+marks the same entry legs by `ts_code` across review dates using option close +
+futures close. It reports per-leg marks, strategy mark value, PnL in option
+points and cash, PnL as a percentage of margin required, and a simple
+post-trade review outcome (`profitable`, `loss_making`, or `flat`).
+
+`get_option_strategy_replay` exposes this as JSON to market/risk/portfolio
+agents for historical replay, backtest-style sanity checks, and post-trade
+review. It is a deterministic mark-to-market replay, not a fill simulator: fees,
+post-entry slippage, and order-book queue effects are not modeled.
+
 ## Analyst node integration
 
 Phase 2B wires the tool layer into the existing analyst nodes without replacing
@@ -116,6 +136,7 @@ the original graph:
 - Phase 9 adds bid/ask-aware execution fields. When `vw_shfe_option_chain_latest` exposes `bid`/`ask`, or when `akshare_option_snapshot` can be joined by trade date, metal, contract month, strike, and call/put, strategy candidates use `BUY` at ask and `SELL` at bid to estimate execution premium and slippage. When bid/ask is missing, execution fields fall back to the analysis price and mark bid/ask completeness as false.
 - Phase 10 adds simplified margin/risk-budget checks for the currently supported defined-risk structures. It reports `margin_required_cash`, `margin_required_pct_of_notional`, `margin_pct_of_risk_budget`, risk budget pass/fail, and explicit no-trade reasons. This is a pre-trade feasibility check, not an exchange/SPAN margin engine.
 - Phase 11 begins the complex strategy expansion with long call/put butterflies: three-leg structures with 1x long lower strike, 2x short middle strike, and 1x long upper strike, including deterministic payoff, margin, scenario PnL, and tool-schema support.
+- Phase 12 adds historical replay/post-trade review for structured strategies, including a market analyst tool node so agents can mark the same entry legs over review dates.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -128,6 +149,7 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - GEX/DEX are scenario/concentration metrics inferred from exchange OI; exchange OI does not reveal verified dealer inventory.
 - Contract multipliers are applied from static SHFE futures contract specifications for cash premium, max loss, max profit, notional, and scenario PnL fields. Option-price-point fields remain available for audit.
 - Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
+- Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled.
 
 ## Verification
 

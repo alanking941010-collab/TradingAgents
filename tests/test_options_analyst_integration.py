@@ -40,6 +40,7 @@ def test_options_symbol_enables_options_tools_and_volatility_first_prompt_for_ma
     assert result["market_report"] == "done"
     assert "get_option_trade_context" in llm.bound_tool_names
     assert "get_option_analytics_report" in llm.bound_tool_names
+    assert "get_option_strategy_replay" in llm.bound_tool_names
     prompt = "\n".join(llm.prompt_messages).lower()
     assert "volatility-first" in prompt
     assert "do not recalculate iv/greeks/gex/dex" in prompt
@@ -91,3 +92,4 @@ def test_trading_graph_tool_nodes_include_options_tools_for_analyst_tool_executi
         assert "get_option_trade_context" in available_tools
 
     assert "get_option_analytics_report" in getattr(tool_nodes["market"], "tools_by_name", {})
+    assert "get_option_strategy_replay" in getattr(tool_nodes["market"], "tools_by_name", {})
