@@ -117,6 +117,101 @@ def _skew(snapshot: OptionChainSnapshot, enriched: list[EnrichedOptionQuote]) ->
     return put.implied_volatility - call.implied_volatility
 
 
+def _round(value: float | None, digits: int = 8) -> float | None:
+    if value is None:
+        return None
+    return round(float(value), digits)
+
+
+def _bucket_summary(rows: list[EnrichedOptionQuote], target_strike: float | None = None) -> dict[str, float | int | None]:
+    values = [float(row.implied_volatility) for row in rows if row.implied_volatility is not None]
+    if not values:
+        return {"avg_iv": None, "representative_strike": None, "option_count": 0}
+    if target_strike is None:
+        representative = min(rows, key=lambda row: abs(float(row.quote.strike) - mean([r.quote.strike for r in rows])))
+    else:
+        representative = min(rows, key=lambda row: abs(float(row.quote.strike) - target_strike))
+    return {
+        "avg_iv": _round(mean(values)),
+        "representative_strike": _round(representative.quote.strike, 4),
+        "option_count": len(values),
+    }
+
+
+def _vol_surface(snapshot: OptionChainSnapshot, enriched: list[EnrichedOptionQuote], term_structure: dict[str, float], skew_25d: float | None) -> dict[str, object]:
+    rows = [row for row in enriched if row.implied_volatility is not None]
+    if not rows:
+        return {
+            "underlying_price": snapshot.underlying_price,
+            "nearest_expiry": None,
+            "moneyness_buckets": {},
+            "skew": {"put_call_skew": None, "risk_reversal_proxy": None, "smile_curvature_proxy": None},
+            "term_regime": {"shape": "no_iv", "front_expiry": None, "back_expiry": None, "front_iv": None, "back_iv": None, "slope": None},
+        }
+
+    expiries = sorted({row.quote.maturity_date for row in rows})
+    buckets: dict[str, dict[str, dict[str, float | int | None]]] = {}
+    for expiry in expiries:
+        expiry_rows = [row for row in rows if row.quote.maturity_date == expiry]
+        strikes = sorted({row.quote.strike for row in expiry_rows})
+        atm_strike = min(strikes, key=lambda strike: (abs(strike - snapshot.underlying_price), strike))
+        otm_puts = [row for row in expiry_rows if row.quote.call_put == "P" and row.quote.strike < snapshot.underlying_price]
+        atm_rows = [row for row in expiry_rows if row.quote.strike == atm_strike]
+        otm_calls = [row for row in expiry_rows if row.quote.call_put == "C" and row.quote.strike > snapshot.underlying_price]
+        buckets[expiry] = {
+            "otm_put": _bucket_summary(otm_puts, snapshot.underlying_price * 0.97),
+            "atm": _bucket_summary(atm_rows, atm_strike),
+            "otm_call": _bucket_summary(otm_calls, snapshot.underlying_price * 1.03),
+        }
+
+    nearest_expiry = expiries[0]
+    nearest = buckets[nearest_expiry]
+    put_iv = nearest["otm_put"].get("avg_iv")
+    atm_iv = nearest["atm"].get("avg_iv")
+    call_iv = nearest["otm_call"].get("avg_iv")
+    risk_reversal = float(call_iv) - float(put_iv) if put_iv is not None and call_iv is not None else None
+    curvature = ((float(put_iv) + float(call_iv)) / 2.0 - float(atm_iv)) if put_iv is not None and call_iv is not None and atm_iv is not None else None
+
+    term_items = sorted(term_structure.items())
+    if len(term_items) >= 2:
+        front_expiry, front_iv = term_items[0]
+        back_expiry, back_iv = term_items[-1]
+        slope = back_iv - front_iv
+        if abs(slope) < 0.0025:
+            shape = "flat"
+        elif slope > 0:
+            shape = "contango"
+        else:
+            shape = "backwardation"
+    else:
+        front_expiry = term_items[0][0] if term_items else None
+        front_iv = term_items[0][1] if term_items else None
+        back_expiry = None
+        back_iv = None
+        slope = None
+        shape = "single_expiry"
+
+    return {
+        "underlying_price": snapshot.underlying_price,
+        "nearest_expiry": nearest_expiry,
+        "moneyness_buckets": buckets,
+        "skew": {
+            "put_call_skew": _round(skew_25d),
+            "risk_reversal_proxy": _round(risk_reversal),
+            "smile_curvature_proxy": _round(curvature),
+            "note": "put_call_skew is put IV minus call IV; risk_reversal_proxy is call IV minus put IV for nearest-expiry OTM buckets.",
+        },
+        "term_regime": {
+            "front_expiry": front_expiry,
+            "back_expiry": back_expiry,
+            "front_iv": _round(front_iv),
+            "back_iv": _round(back_iv),
+            "slope": _round(slope),
+            "shape": shape,
+        },
+    }
+
+
 def _exposure(enriched: list[EnrichedOptionQuote]) -> ExposureSummary:
     total_gex = sum(row.gex_per_1pct or 0.0 for row in enriched)
     total_abs_gex = sum(abs(row.gex_per_1pct or 0.0) for row in enriched)
@@ -179,14 +274,17 @@ def analyze_option_chain(
     call_vol = sum(row.volume for row in snapshot.options if row.call_put == "C")
     put_vol = sum(row.volume for row in snapshot.options if row.call_put == "P")
     exposure = _exposure(enriched)
+    term_structure = _term_structure(enriched)
+    skew_25d = _skew(snapshot, enriched)
     return OptionAnalyticsReport(
         product=snapshot.product,
         trade_date=snapshot.trade_date,
         underlying_symbol=snapshot.underlying_symbol,
         underlying_price=snapshot.underlying_price,
         atm_iv=_atm_iv(snapshot, enriched),
-        skew_25d=_skew(snapshot, enriched),
-        term_structure=_term_structure(enriched),
+        skew_25d=skew_25d,
+        term_structure=term_structure,
+        vol_surface=_vol_surface(snapshot, enriched, term_structure, skew_25d),
         pcr_open_interest=_safe_ratio(put_oi, call_oi),
         pcr_volume=_safe_ratio(put_vol, call_vol),
         call_wall=_wall(snapshot.options, "C"),

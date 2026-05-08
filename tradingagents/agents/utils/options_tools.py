@@ -98,6 +98,7 @@ def build_option_analytics_payload(
         "atm_iv": _round_or_none(report.atm_iv),
         "skew_25d": _round_or_none(report.skew_25d),
         "term_structure": {k: _round_or_none(v) for k, v in sorted(report.term_structure.items())},
+        "vol_surface": report.vol_surface,
         "pcr_open_interest": _round_or_none(report.pcr_open_interest),
         "pcr_volume": _round_or_none(report.pcr_volume),
         "call_wall": _wall_to_dict(report.call_wall),
@@ -148,6 +149,7 @@ def build_option_trade_context(
             "nearest_expiry": nearest_expiry,
             "nearest_expiry_iv": _round_or_none(report.term_structure.get(nearest_expiry)) if nearest_expiry else None,
             "term_structure": {k: _round_or_none(v) for k, v in sorted(report.term_structure.items())},
+            "vol_surface": report.vol_surface,
         },
         "positioning": {
             "pcr_oi": _round_or_none(report.pcr_open_interest),

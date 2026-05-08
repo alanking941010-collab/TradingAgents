@@ -33,6 +33,14 @@ Public deterministic helpers:
 - `build_option_analytics_payload(symbol, trade_date=None, expiry=None)` — full audit JSON/dict with option rows.
 - `build_option_analytics_markdown(symbol, trade_date=None, expiry=None)` — human-readable Markdown.
 
+Phase 16 enriches the analytics payload with `vol_surface`:
+
+- `moneyness_buckets`: per-expiry `otm_put`, `atm`, and `otm_call` IV buckets with representative strike and option count.
+- `skew`: `put_call_skew`, `risk_reversal_proxy`, and `smile_curvature_proxy` for the nearest expiry.
+- `term_regime`: front/back expiry IV, slope, and shape (`contango`, `backwardation`, `flat`, or `single_expiry`).
+
+These are deterministic summaries of available chain rows. They are volatility-surface diagnostics for agent interpretation, not dealer-position or executable-vol quotes.
+
 LangChain tools:
 
 - `get_option_trade_context`
@@ -186,6 +194,7 @@ the original graph:
 - Phase 14A adds a live-delivery boundary and Hermes cron-ready script: injected sender callables can perform verified sends, and no-agent cron can deliver report Markdown stdout to Feishu targets while saving audit artifacts.
 - Phase 14B expands the complex strategy library with `short_iron_condor`: a credit, defined-risk, four-leg structure with simplified max-profit/max-loss, breakevens, cash-risk, margin, scenario PnL, report, and tool support.
 - Phase 15 improves credit strategy execution realism: `short_iron_condor` now reports executable credit from bid/ask, credit slippage, execution-adjusted max loss/margin, credit/wing-width and credit/max-loss ratios, and optional no-trade filters (`min_credit_pct_of_wing_width`, `max_bid_ask_spread_pct`).
+- Phase 16 adds volatility-surface diagnostics: moneyness IV buckets, risk-reversal/smile-curvature proxies, term-regime shape, and report/tool/prompt exposure so agents can tie structures to skew and term structure instead of only ATM IV.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -197,6 +206,7 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Settlement basis is only for explicit settlement/risk-control requests.
 - GEX/DEX are scenario/concentration metrics inferred from exchange OI; exchange OI does not reveal verified dealer inventory.
 - Contract multipliers are applied from static SHFE futures contract specifications for cash premium, max loss, max profit, notional, and scenario PnL fields. Option-price-point fields remain available for audit.
+- Volatility-surface model: `vol_surface` buckets are computed from available option close-based IV rows by expiry/moneyness; risk-reversal and smile-curvature proxies are diagnostics, not executable volatility quotes.
 - Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures and, for `short_iron_condor`, execution-adjusted max loss based on executable credit when bid/ask are available; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
 - Credit execution model: supported credit structures use bid/ask feasibility (`SELL` at bid, `BUY` at ask) to report executable credit, credit slippage, credit/wing-width ratio, and optional no-trade filters. This is still an indicative pre-trade proxy, not a guaranteed live fill.
 - Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled.

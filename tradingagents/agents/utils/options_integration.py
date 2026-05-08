@@ -83,7 +83,7 @@ def options_analyst_instruction(symbol: str | None, analyst_role: str) -> str:
     return (
         f"\n\nSHFE options analytics mode is active for {product}. "
         "Use get_option_trade_context first to obtain deterministic option analytics. "
-        "Keep the analysis volatility-first: focus on IV level, term structure, skew, PCR, walls, gamma flip, and Greeks/risk scenarios. "
+        "Keep the analysis volatility-first: focus on IV level, volatility surface, term structure, skew, PCR, walls, gamma flip, and Greeks/risk scenarios. "
         "Do not recalculate IV/Greeks/GEX/DEX in the LLM; treat the tool JSON as the source of truth. "
         "Default price basis is option close + futures close, with r = 1.5%; use settlement only for explicit settlement/risk-control requests. "
         "Use get_option_strategy_report when a Markdown-ready report is needed, and get_option_feishu_delivery_payload only to build a side-effect-free Feishu payload for an external sender. "
@@ -119,7 +119,7 @@ def options_trader_instruction(symbol: str | None) -> str:
     product = normalize_product(symbol)
     return (
         f"\n\nSHFE options trading mode is active for {product}. Before proposing any option structure, first state your volatility view. "
-        "Synthesize the previous analyst evidence plus the bull and bear debate about whether implied volatility is more likely to rise or fall over the 5-day, 20-day, and 40-day horizons. "
+        "Synthesize the previous analyst evidence plus the bull and bear debate about whether implied volatility is more likely to rise or fall over the 5-day, 20-day, and 40-day horizons; explicitly reference volatility surface, skew, and term structure when available. "
         "Only after that volatility view should you propose option structures. Prefer defined-risk structures unless the evidence and liquidity justify otherwise. "
         "When an option structure is proposed, include a structured option strategy object with legs, expiry, strike, side, quantity, debit/credit, max loss, max profit, breakeven, Greeks snapshot, liquidity filter, contract multiplier, cash premium/max loss, bid/ask execution prices, slippage, execution liquidity score, credit execution metrics for credit structures, margin required, risk budget pass/fail, and no-trade reasons. "
         "Tie every structure to the vol view, directional view, expiry, strike area, liquidity, Greeks, cash premium/max loss, bid/ask feasibility, slippage, execution liquidity, executable credit/risk ratio when applicable, margin required, risk budget pass/fail, and no-trade conditions. "
@@ -155,7 +155,7 @@ def options_risk_debator_instruction(symbol: str | None, risk_role: str) -> str:
     }.get(risk_role, "evaluate the option structure risk controls.")
     return (
         f"\n\nSHFE options risk mode is active for {product}. Evaluate the trader's proposed option structure through an options-risk lens: {role_lens} "
-        "Explicitly cover Greeks: delta, gamma, theta, and vega; discuss gamma/theta trade-off and vega exposure under 5-day, 20-day, and 40-day volatility paths. "
+        "Explicitly cover Greeks: delta, gamma, theta, and vega; discuss gamma/theta trade-off, volatility surface, skew, term structure, and vega exposure under 5-day, 20-day, and 40-day volatility paths. "
         "Use the trader's structured strategy / scenario PnL matrix when present: cite the worst scenario, best scenario, T+5 and T+20 time-decay cases, IV up/down sensitivity, max loss consistency, and breakeven proximity. "
         "Evaluate contract multiplier conversion and cash risk fields: net premium cash, max loss cash, scenario PnL cash, underlying notional, executable credit and execution-adjusted max loss for credit structures, margin required, risk budget pass/fail, and risk budget utilization. "
         "Check liquidity, bid/ask feasibility, slippage, execution liquidity score, executable credit/wing-width ratio where applicable, open interest concentration, expiry risk, margin, max loss, and whether the risk budget can absorb margin required, premium decay, or stress moves. "

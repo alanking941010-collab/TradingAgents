@@ -104,6 +104,7 @@ class OptionAnalyticsReport:
     atm_iv: float | None
     skew_25d: float | None
     term_structure: dict[str, float]
+    vol_surface: dict[str, object]
     pcr_open_interest: float | None
     pcr_volume: float | None
     call_wall: WallLevel
@@ -126,6 +127,8 @@ class OptionAnalyticsReport:
             f"- Underlying: {self.underlying_symbol} @ {self.underlying_price:.4f}",
             f"- ATM IV: {fmt(self.atm_iv)}",
             f"- Skew: {fmt(self.skew_25d)}",
+            f"- Term regime: {self.vol_surface.get('term_regime', {}).get('shape', 'N/A')}",
+            f"- Risk reversal proxy: {fmt(self.vol_surface.get('skew', {}).get('risk_reversal_proxy') if self.vol_surface else None)}",
             f"- PCR OI: {fmt(self.pcr_open_interest)}",
             f"- PCR Volume: {fmt(self.pcr_volume)}",
             f"- Call Wall: {self.call_wall.strike:.4f} / OI {self.call_wall.open_interest:.0f}",
@@ -138,6 +141,16 @@ class OptionAnalyticsReport:
         ]
         for maturity, iv in sorted(self.term_structure.items()):
             lines.append(f"- {maturity}: {iv:.4f}")
+        lines.extend(["", "## Volatility Surface"])
+        buckets = self.vol_surface.get("moneyness_buckets", {}) if self.vol_surface else {}
+        for maturity, bucket_map in sorted(buckets.items()):
+            lines.append(f"- {maturity}:")
+            for bucket_name in ["otm_put", "atm", "otm_call"]:
+                bucket = bucket_map.get(bucket_name, {}) if isinstance(bucket_map, dict) else {}
+                lines.append(
+                    f"  - {bucket_name}: IV {fmt(bucket.get('avg_iv'))}, "
+                    f"strike {fmt(bucket.get('representative_strike'), 2)}, count {bucket.get('option_count', 0)}"
+                )
         lines.extend(["", "## Assumptions"])
         for item in self.assumptions:
             lines.append(f"- {item}")
