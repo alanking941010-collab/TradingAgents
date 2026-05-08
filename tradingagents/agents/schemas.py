@@ -155,7 +155,7 @@ class TraderProposal(BaseModel):
             "strike, side, quantity, debit/credit, max loss, max profit, breakeven, "
             "Greeks snapshot, liquidity filter, contract multiplier, cash premium, "
             "cash max loss/profit, bid/ask execution prices, slippage, execution "
-            "liquidity score, and risk-budget utilization."
+            "liquidity score, margin required, risk budget pass/fail, and no-trade reasons."
         ),
     )
     reasoning: str = Field(

@@ -115,6 +115,7 @@ def build_option_analytics_payload(
             "gex_dex_note": "Exchange OI does not reveal true dealer inventory; GEX/DEX are scenario/concentration metrics.",
             "contract_multiplier_note": "Strategy/scenario tools apply static SHFE contract multipliers to premium/risk/PnL cash fields.",
             "execution_liquidity_note": "When bid/ask snapshots are available, strategy tools include execution price, slippage, and execution liquidity score; otherwise bid/ask fields remain null and execution is proxy-based.",
+            "margin_note": "Strategy/scenario tools include simplified defined-risk margin required and risk budget pass/fail fields; exchange/SPAN margin is not modeled.",
         },
         "options": [_enriched_option_to_dict(row) for row in report.options],
     }

@@ -15,8 +15,8 @@ volatility-first:
 - `bear_researcher`: bearish directional or bearish-volatility structures supported by data.
 - `research_manager`: adjudicate the bull/bear volatility debate and preserve a 5/20/40-day vol path handoff for the trader.
 - `trader`: first state the volatility view, then convert it into structured option strategies with auditable legs/payoff/risk/execution fields.
-- `risk_manager`: stress-test Greeks, gamma/theta, vega, liquidity, bid/ask feasibility, slippage, execution liquidity, expiry, margin/max loss, contract-multiplier cash risk, scenario PnL, breakeven proximity, and no-trade filters.
-- `portfolio_manager`: decide trade/watch/no-trade with scenario PnL assessment, cash risk-budget utilization, options risk assessment, execution liquidity checks, no-trade conditions, and assumptions.
+- `risk_manager`: stress-test Greeks, gamma/theta, vega, liquidity, bid/ask feasibility, slippage, execution liquidity, expiry, margin required, risk budget pass/fail, contract-multiplier cash risk, scenario PnL, breakeven proximity, and no-trade filters.
+- `portfolio_manager`: decide trade/watch/no-trade with scenario PnL assessment, cash risk-budget utilization, margin checks, options risk assessment, execution liquidity checks, no-trade conditions, and assumptions.
 
 LLMs should interpret the structured results. They should not calculate IV,
 Greeks, GEX, DEX, PCR, walls, or gamma flip from raw prices.
@@ -64,6 +64,8 @@ The structurer returns an auditable object with:
 - net `greeks` snapshot.
 - `liquidity` filter based on min volume/OI.
 - `execution`: bid/ask completeness, net mid premium, net execution premium, slippage points/cash, spread metrics, and a 0-100 execution liquidity score.
+- `margin`: simplified defined-risk margin required, using execution-adjusted max loss when bid/ask execution premium is available.
+- `risk_budget`: pass/fail/not-provided status, margin/max-loss utilization, and no-trade reasons when the budget is breached.
 - assumptions including `option close + futures close` and `contract_multiplier_applied=True`.
 - `cash_risk`: contract multiplier, net premium cash, max loss cash, max profit cash, underlying notional per lot, and risk-budget utilization when provided.
 
@@ -89,6 +91,8 @@ PnL as a fraction of max loss, best/worst scenario IDs, and breakeven proximity.
 Phase 8 keeps option-price-point fields for auditability and adds cash fields
 after applying the SHFE contract multiplier: `scenario_value_cash`, `pnl_cash`,
 `worst_pnl_cash`, `best_pnl_cash`, and risk-budget utilization when provided.
+Phase 10 also carries `margin`, `risk_budget`, and summary PnL as a percentage
+of margin required into the scenario matrix.
 
 `get_option_strategy_scenarios` exposes this as JSON to agents so risk and
 portfolio managers can inspect path-dependent payoff behavior instead of only
@@ -108,6 +112,7 @@ the original graph:
 - `aggressive/conservative/neutral risk` analysts keep the native debate loop but must evaluate Greeks, gamma/theta trade-off, vega exposure, liquidity, expiry, margin, max loss, cash risk budget, scenario PnL worst/best cases, T+5/T+20 decay, IV up/down sensitivity, breakeven proximity, and no-trade filters in options mode.
 - `portfolio_manager` renders optional `Scenario PnL Assessment`, `Options Risk Assessment`, and `No-Trade Conditions`, forcing final approval to be tied to the deterministic stress matrix, cash risk budget, and executable liquidity.
 - Phase 9 adds bid/ask-aware execution fields. When `vw_shfe_option_chain_latest` exposes `bid`/`ask`, or when `akshare_option_snapshot` can be joined by trade date, metal, contract month, strike, and call/put, strategy candidates use `BUY` at ask and `SELL` at bid to estimate execution premium and slippage. When bid/ask is missing, execution fields fall back to the analysis price and mark bid/ask completeness as false.
+- Phase 10 adds simplified margin/risk-budget checks for the currently supported defined-risk structures. It reports `margin_required_cash`, `margin_required_pct_of_notional`, `margin_pct_of_risk_budget`, risk budget pass/fail, and explicit no-trade reasons. This is a pre-trade feasibility check, not an exchange/SPAN margin engine.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -119,6 +124,7 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Settlement basis is only for explicit settlement/risk-control requests.
 - GEX/DEX are scenario/concentration metrics inferred from exchange OI; exchange OI does not reveal verified dealer inventory.
 - Contract multipliers are applied from static SHFE futures contract specifications for cash premium, max loss, max profit, notional, and scenario PnL fields. Option-price-point fields remain available for audit.
+- Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
 
 ## Verification
 

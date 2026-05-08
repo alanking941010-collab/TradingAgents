@@ -106,8 +106,8 @@ def options_trader_instruction(symbol: str | None) -> str:
         f"\n\nSHFE options trading mode is active for {product}. Before proposing any option structure, first state your volatility view. "
         "Synthesize the previous analyst evidence plus the bull and bear debate about whether implied volatility is more likely to rise or fall over the 5-day, 20-day, and 40-day horizons. "
         "Only after that volatility view should you propose option structures. Prefer defined-risk structures unless the evidence and liquidity justify otherwise. "
-        "When an option structure is proposed, include a structured option strategy object with legs, expiry, strike, side, quantity, debit/credit, max loss, max profit, breakeven, Greeks snapshot, liquidity filter, contract multiplier, cash premium/max loss, bid/ask execution prices, slippage, execution liquidity score, and risk-budget utilization. "
-        "Tie every structure to the vol view, directional view, expiry, strike area, liquidity, Greeks, cash premium/max loss, bid/ask feasibility, slippage, execution liquidity, risk budget, and no-trade conditions. "
+        "When an option structure is proposed, include a structured option strategy object with legs, expiry, strike, side, quantity, debit/credit, max loss, max profit, breakeven, Greeks snapshot, liquidity filter, contract multiplier, cash premium/max loss, bid/ask execution prices, slippage, execution liquidity score, margin required, risk budget pass/fail, and no-trade reasons. "
+        "Tie every structure to the vol view, directional view, expiry, strike area, liquidity, Greeks, cash premium/max loss, bid/ask feasibility, slippage, execution liquidity, margin required, risk budget pass/fail, and no-trade conditions. "
         "Do not recalculate IV/Greeks/GEX/DEX; use the prior deterministic analytics as source-of-truth inputs. "
         "Default basis remains option close + futures close, r = 1.5%, with GEX/DEX treated only as exchange-OI scenario metrics."
     )
@@ -142,8 +142,8 @@ def options_risk_debator_instruction(symbol: str | None, risk_role: str) -> str:
         f"\n\nSHFE options risk mode is active for {product}. Evaluate the trader's proposed option structure through an options-risk lens: {role_lens} "
         "Explicitly cover Greeks: delta, gamma, theta, and vega; discuss gamma/theta trade-off and vega exposure under 5-day, 20-day, and 40-day volatility paths. "
         "Use the trader's structured strategy / scenario PnL matrix when present: cite the worst scenario, best scenario, T+5 and T+20 time-decay cases, IV up/down sensitivity, max loss consistency, and breakeven proximity. "
-        "Evaluate contract multiplier conversion and cash risk fields: net premium cash, max loss cash, scenario PnL cash, underlying notional, and risk budget utilization. "
-        "Check liquidity, bid/ask feasibility, slippage, execution liquidity score, open interest concentration, expiry risk, margin, max loss, and whether the risk budget can absorb premium decay or stress moves. "
+        "Evaluate contract multiplier conversion and cash risk fields: net premium cash, max loss cash, scenario PnL cash, underlying notional, margin required, risk budget pass/fail, and risk budget utilization. "
+        "Check liquidity, bid/ask feasibility, slippage, execution liquidity score, open interest concentration, expiry risk, margin, max loss, and whether the risk budget can absorb margin required, premium decay, or stress moves. "
         "List concrete no-trade conditions such as poor liquidity, wide bid/ask, excessive slippage, weak execution liquidity, excessive theta bleed, unstable gamma near expiry, margin/max loss beyond budget, unacceptable scenario PnL, adverse breakeven proximity, or invalidated volatility view. "
         "Remember dealer position is unknown; GEX/DEX from exchange OI are scenario/concentration metrics, not verified dealer inventory."
     )
@@ -158,7 +158,7 @@ def options_portfolio_instruction(symbol: str | None) -> str:
     return (
         f"\n\nSHFE options portfolio mode is active for {product}. The final decision must include a Scenario PnL Assessment, an Options Risk Assessment, and No-Trade Conditions. "
         "Before approving any trade, check the scenario PnL matrix: worst scenario, best scenario, T+5 and T+20 time-decay cases, IV up/down sensitivity, max loss consistency, and breakeven proximity. "
-        "Verify contract multiplier conversion from option-price points into cash: net premium cash, max loss cash, scenario PnL cash, underlying notional, and risk budget utilization. "
+        "Verify contract multiplier conversion from option-price points into cash: net premium cash, max loss cash, scenario PnL cash, underlying notional, margin required, risk budget pass/fail, and risk budget utilization. "
         "Then check Greeks, delta/gamma/theta/vega exposure, liquidity, bid/ask, slippage, execution liquidity score, expiry risk, margin, max loss, and risk budget. "
         "Tie the position size to maximum premium at risk or defined max loss; avoid naked short gamma unless explicitly justified by liquidity, margin, and stress scenarios. "
         "State no-trade conditions clearly: poor liquidity, wide bid/ask, excessive slippage, weak execution liquidity, excessive theta bleed, unstable gamma near expiry, margin/max loss beyond risk budget, unacceptable scenario PnL, adverse breakeven proximity, or a broken volatility view. "

@@ -90,7 +90,12 @@ def _breakeven_proximity(underlying_price: float, breakevens: list[float]) -> fl
     return _round(min(abs(float(item) - underlying_price) for item in breakevens), 4)
 
 
-def _summary(scenarios: list[dict[str, Any]], breakevens: list[float], underlying_price: float) -> dict[str, Any]:
+def _summary(
+    scenarios: list[dict[str, Any]],
+    breakevens: list[float],
+    underlying_price: float,
+    margin_required_cash: float | None = None,
+) -> dict[str, Any]:
     worst = min(scenarios, key=lambda row: row["pnl"])
     best = max(scenarios, key=lambda row: row["pnl"])
     return {
@@ -98,6 +103,8 @@ def _summary(scenarios: list[dict[str, Any]], breakevens: list[float], underlyin
         "worst_pnl_cash": worst.get("pnl_cash"),
         "best_pnl": best["pnl"],
         "best_pnl_cash": best.get("pnl_cash"),
+        "worst_pnl_pct_of_margin": _round(worst.get("pnl_cash") / margin_required_cash, 8) if worst.get("pnl_cash") is not None and margin_required_cash else None,
+        "best_pnl_pct_of_margin": _round(best.get("pnl_cash") / margin_required_cash, 8) if best.get("pnl_cash") is not None and margin_required_cash else None,
         "worst_scenario": worst["scenario_id"],
         "best_scenario": best["scenario_id"],
         "breakeven_proximity": _breakeven_proximity(underlying_price, breakevens),
@@ -169,13 +176,20 @@ def build_option_strategy_scenarios(
     return {
         "strategy": strategy,
         "cash_risk": strategy.get("cash_risk"),
+        "margin": strategy.get("margin"),
+        "risk_budget": strategy.get("risk_budget"),
         "scenario_grid": {
             "price_shocks": price_grid,
             "iv_shocks": iv_grid,
             "days_forward": time_grid,
         },
         "scenarios": scenarios,
-        "summary": _summary(scenarios, strategy.get("breakevens") or [], float(strategy["underlying_price"])),
+        "summary": _summary(
+            scenarios,
+            strategy.get("breakevens") or [],
+            float(strategy["underlying_price"]),
+            strategy.get("margin", {}).get("margin_required_cash"),
+        ),
         "assumptions": {
             "model": "Black-76 futures option model",
             "price_basis": "option close + futures close",
@@ -183,6 +197,7 @@ def build_option_strategy_scenarios(
             "iv_shock_unit": "absolute_vol_points",
             "contract_multiplier_applied": True,
             "contract_multiplier_source": "static SHFE futures contract specification mapping",
+            "margin_model": "simplified_defined_risk",
             "execution_note": "Scenario matrix is analytical only; verify live bid/ask, margin, and exchange rules before execution.",
         },
     }

@@ -295,6 +295,72 @@ def _cash_risk_fields(
     }
 
 
+def _margin_fields(
+    *,
+    strategy_type: str,
+    payoff: dict[str, Any],
+    execution: dict[str, Any],
+    cash_risk: dict[str, Any],
+) -> dict[str, Any]:
+    """Return a simplified pre-trade margin estimate for defined-risk structures."""
+    contract_multiplier = int(cash_risk.get("contract_multiplier") or 1)
+    net_execution_premium = execution.get("net_execution_premium")
+    max_loss = payoff.get("max_loss")
+    if max_loss is None:
+        max_loss_at_execution = None
+    elif net_execution_premium is not None and float(net_execution_premium) > 0:
+        max_loss_at_execution = max(float(max_loss), float(net_execution_premium))
+    else:
+        max_loss_at_execution = float(max_loss)
+    max_loss_at_execution_cash = _cash(max_loss_at_execution, contract_multiplier) if max_loss_at_execution is not None else None
+    margin_required_cash = max_loss_at_execution_cash
+    underlying_notional = cash_risk.get("underlying_notional_per_lot")
+    return {
+        "method": "defined_risk_execution_adjusted_max_loss",
+        "margin_model": "simplified_defined_risk",
+        "strategy_type": strategy_type,
+        "defined_risk": True,
+        "margin_required_cash": margin_required_cash,
+        "max_loss_at_mid_cash": cash_risk.get("max_loss_cash"),
+        "max_loss_at_execution_cash": max_loss_at_execution_cash,
+        "margin_required_pct_of_notional": _round(margin_required_cash / underlying_notional, 8) if margin_required_cash is not None and underlying_notional else None,
+        "notes": [
+            "Current simplified margin model covers defined-risk debit option structures only.",
+            "Margin required uses execution-adjusted max loss when bid/ask execution premium is available; otherwise it falls back to close/settle analysis price.",
+            "Exchange/SPAN margin, offsets, fees, and broker-specific add-ons are not modeled.",
+        ],
+    }
+
+
+def _risk_budget_fields(
+    *,
+    margin: dict[str, Any],
+    cash_risk: dict[str, Any],
+    risk_budget_cash: float | None,
+) -> dict[str, Any]:
+    margin_required = margin.get("margin_required_cash")
+    max_loss_cash = cash_risk.get("max_loss_cash")
+    reasons: list[str] = []
+    if risk_budget_cash is None:
+        status = "not_provided"
+        passes = None
+    else:
+        if margin_required is not None and margin_required > risk_budget_cash:
+            reasons.append("margin_required_cash exceeds risk_budget_cash")
+        if max_loss_cash is not None and max_loss_cash > risk_budget_cash:
+            reasons.append("max_loss_cash exceeds risk_budget_cash")
+        passes = not reasons
+        status = "pass" if passes else "fail"
+    return {
+        "risk_budget_cash": risk_budget_cash,
+        "passes": passes,
+        "status": status,
+        "margin_pct_of_risk_budget": _round(margin_required / risk_budget_cash, 8) if margin_required is not None and risk_budget_cash else None,
+        "max_loss_pct_of_risk_budget": _round(max_loss_cash / risk_budget_cash, 8) if max_loss_cash is not None and risk_budget_cash else None,
+        "no_trade_reasons": reasons,
+    }
+
+
 def build_option_strategy_candidate(
     symbol: str,
     strategy_type: str,
@@ -324,6 +390,26 @@ def build_option_strategy_candidate(
     payoff = _payoff(normalized_strategy, legs, net)
     liquidity = _liquidity(legs, min_open_interest, min_volume)
     execution = _execution_summary(legs, net, contract_multiplier, liquidity)
+    cash_risk = _cash_risk_fields(
+        net_premium=net,
+        max_loss=payoff["max_loss"],
+        max_profit=payoff["max_profit"],
+        underlying_price=report.underlying_price,
+        contract_multiplier=contract_multiplier,
+        multiplier_unit=multiplier_unit,
+        risk_budget_cash=risk_budget_cash,
+    )
+    margin = _margin_fields(
+        strategy_type=normalized_strategy,
+        payoff=payoff,
+        execution=execution,
+        cash_risk=cash_risk,
+    )
+    risk_budget = _risk_budget_fields(
+        margin=margin,
+        cash_risk=cash_risk,
+        risk_budget_cash=risk_budget_cash,
+    )
     maturity = legs[0]["expiry"] if legs else None
     return {
         "strategy_type": normalized_strategy,
@@ -341,23 +427,18 @@ def build_option_strategy_candidate(
         "max_loss": payoff["max_loss"],
         "max_profit": payoff["max_profit"],
         "breakevens": payoff["breakevens"],
-        "cash_risk": _cash_risk_fields(
-            net_premium=net,
-            max_loss=payoff["max_loss"],
-            max_profit=payoff["max_profit"],
-            underlying_price=report.underlying_price,
-            contract_multiplier=contract_multiplier,
-            multiplier_unit=multiplier_unit,
-            risk_budget_cash=risk_budget_cash,
-        ),
+        "cash_risk": cash_risk,
         "greeks": _net_greeks(legs),
         "liquidity": liquidity,
         "execution": execution,
+        "margin": margin,
+        "risk_budget": risk_budget,
         "assumptions": {
             "model": "Black-76 futures option model",
             "price_basis": "option close + futures close",
             "contract_multiplier_applied": True,
             "contract_multiplier_source": "static SHFE futures contract specification mapping",
+            "margin_model": "simplified_defined_risk",
             "execution_note": "Candidate is analytical only; verify live bid/ask, slippage, margin, and exchange rules before trading.",
         },
     }
