@@ -14,6 +14,7 @@ from typing import Annotated, Any
 from langchain_core.tools import tool
 
 from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE, analyze_option_chain
+from tradingagents.options.delivery import build_hermes_cron_delivery_spec
 from tradingagents.options.models import EnrichedOptionQuote, OptionAnalyticsReport
 from tradingagents.options.replay import build_option_strategy_replay
 from tradingagents.options.reports import build_feishu_delivery_payload, build_option_strategy_report
@@ -339,3 +340,33 @@ def get_option_feishu_delivery_payload(
         ensure_ascii=False,
         default=str,
     )
+
+
+@tool
+def get_option_hermes_cron_delivery_spec(
+    symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly"],
+    trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
+    expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
+    review_dates: Annotated[list[str] | None, "Optional historical review dates for replay section"] = None,
+    risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY"] = None,
+    target: Annotated[str | None, "Feishu/Hermes target, e.g. feishu:oc_xxx"] = None,
+    schedule: Annotated[str, "Hermes cron schedule, e.g. '0 8 * * 1-5'"] = "0 8 * * 1-5",
+) -> str:
+    """Return a Hermes no-agent cron spec for stdout-based Feishu report delivery."""
+    report = build_option_strategy_report(
+        symbol,
+        strategy_type=strategy_type,
+        trade_date=trade_date,
+        expiry=expiry,
+        review_dates=review_dates,
+        risk_budget_cash=risk_budget_cash,
+    )
+    payload = build_feishu_delivery_payload(report, target=target, dry_run=False)
+    spec = build_hermes_cron_delivery_spec(payload, schedule=schedule)
+    spec["payload_preview"] = {
+        "title": payload["title"],
+        "target": payload["target"],
+        "message_length": len(payload["message"]),
+    }
+    return json.dumps(spec, ensure_ascii=False, default=str)

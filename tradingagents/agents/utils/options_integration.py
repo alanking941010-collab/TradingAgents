@@ -14,6 +14,7 @@ from tradingagents.agents.utils.options_tools import (
     get_option_analytics_json,
     get_option_analytics_report,
     get_option_feishu_delivery_payload,
+    get_option_hermes_cron_delivery_spec,
     get_option_strategy_candidate,
     get_option_strategy_replay,
     get_option_strategy_report,
@@ -65,6 +66,7 @@ def augment_tools_for_options(
             get_option_strategy_replay,
             get_option_strategy_report,
             get_option_feishu_delivery_payload,
+            get_option_hermes_cron_delivery_spec,
         ):
             if tool not in augmented:
                 augmented.append(tool)
@@ -85,6 +87,7 @@ def options_analyst_instruction(symbol: str | None, analyst_role: str) -> str:
         "Do not recalculate IV/Greeks/GEX/DEX in the LLM; treat the tool JSON as the source of truth. "
         "Default price basis is option close + futures close, with r = 1.5%; use settlement only for explicit settlement/risk-control requests. "
         "Use get_option_strategy_report when a Markdown-ready report is needed, and get_option_feishu_delivery_payload only to build a side-effect-free Feishu payload for an external sender. "
+        "Use get_option_hermes_cron_delivery_spec when preparing a Hermes no-agent cron job that delivers report stdout to Feishu. "
         "GEX/DEX are exchange-OI scenario/concentration metrics because dealer position is unknown. "
         f"For this analyst role, emphasize {lens}"
     )

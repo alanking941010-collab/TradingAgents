@@ -43,6 +43,7 @@ LangChain tools:
 - `get_option_strategy_replay`
 - `get_option_strategy_report`
 - `get_option_feishu_delivery_payload`
+- `get_option_hermes_cron_delivery_spec`
 
 ## Strategy structurer
 
@@ -144,12 +145,30 @@ message payload (`channel`, `target`, `title`, `message`, `dry_run`, and
 these functions as tools for agents that need report generation or delivery
 handoff.
 
+Phase 14A adds an explicit send boundary and Hermes cron-ready entrypoint:
+
+```text
+tradingagents/options/delivery.py
+scripts/deliver_option_strategy_report.py
+```
+
+`send_feishu_delivery_payload` performs live delivery only through an injected
+sender callable (`target`, `message`) and returns a verified send result. If
+`dry_run=False` and no sender is supplied, it raises instead of pretending a
+message was sent.
+
+`build_hermes_cron_delivery_spec` and `get_option_hermes_cron_delivery_spec`
+document the no-agent cron path: run `scripts/deliver_option_strategy_report.py`
+with `--stdout message`; Hermes no-agent cron delivers non-empty stdout to the
+configured Feishu target. The script also writes the full report JSON, Markdown,
+and Feishu payload JSON artifacts for audit.
+
 ## Analyst node integration
 
 Phase 2B wires the tool layer into the existing analyst nodes without replacing
 the original graph:
 
-- `market_analyst` keeps `get_stock_data` and `get_indicators`, and adds `get_option_trade_context`, `get_option_analytics_report`, `get_option_analytics_json`, `get_option_strategy_candidate`, `get_option_strategy_scenarios`, `get_option_strategy_replay`, `get_option_strategy_report`, and `get_option_feishu_delivery_payload` for supported SHFE metals option symbols.
+- `market_analyst` keeps `get_stock_data` and `get_indicators`, and adds `get_option_trade_context`, `get_option_analytics_report`, `get_option_analytics_json`, `get_option_strategy_candidate`, `get_option_strategy_scenarios`, `get_option_strategy_replay`, `get_option_strategy_report`, `get_option_feishu_delivery_payload`, and `get_option_hermes_cron_delivery_spec` for supported SHFE metals option symbols.
 - `fundamentals_analyst` keeps the commodity/fundamental tools and adds `get_option_trade_context` so inventories, macro anchors, and term structure can be interpreted as volatility-regime drivers.
 - `news_analyst` keeps local/global news tools and adds `get_option_trade_context` so events are framed as IV, skew, and tail-demand repricing risks.
 - `bull_researcher` and `bear_researcher` keep the native debate loop but, in options mode, must discuss whether implied volatility is more likely to rise or fall over 5-day, 20-day, and 40-day horizons.
@@ -162,6 +181,7 @@ the original graph:
 - Phase 11 begins the complex strategy expansion with long call/put butterflies: three-leg structures with 1x long lower strike, 2x short middle strike, and 1x long upper strike, including deterministic payoff, margin, scenario PnL, and tool-schema support.
 - Phase 12 adds historical replay/post-trade review for structured strategies, including a market analyst tool node so agents can mark the same entry legs over review dates.
 - Phase 13 adds a report pipeline and Feishu delivery handoff: agents can build a Markdown strategy report plus a side-effect-free Feishu payload, but the code does not publish messages by itself.
+- Phase 14A adds a live-delivery boundary and Hermes cron-ready script: injected sender callables can perform verified sends, and no-agent cron can deliver report Markdown stdout to Feishu targets while saving audit artifacts.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -175,7 +195,7 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Contract multipliers are applied from static SHFE futures contract specifications for cash premium, max loss, max profit, notional, and scenario PnL fields. Option-price-point fields remain available for audit.
 - Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
 - Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled.
-- Report/delivery model: reports are Markdown + audit payloads; Feishu payloads are side-effect-free handoffs and require an external sender to publish.
+- Report/delivery model: reports are Markdown + audit payloads; Feishu payloads are side-effect-free handoffs and require an external sender to publish. Phase 14A live sends require an injected sender callable, while scheduled Hermes delivery should use no-agent cron with `scripts/deliver_option_strategy_report.py --stdout message`.
 
 ## Verification
 
