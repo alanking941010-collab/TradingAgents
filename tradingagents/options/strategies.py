@@ -96,14 +96,27 @@ def _cash(value: float | None, contract_multiplier: int, digits: int = 4) -> flo
     return _round(float(value) * contract_multiplier, digits)
 
 
+def _bid_ask_status(raw_bid: float | None, raw_ask: float | None) -> str:
+    if raw_bid is None or raw_ask is None:
+        return "missing"
+    if raw_bid <= 0 or raw_ask <= 0:
+        return "invalid_nonpositive"
+    if raw_ask < raw_bid:
+        return "invalid_crossed"
+    return "valid"
+
+
 def _leg(row: EnrichedOptionQuote, side: str, quantity: int = 1, contract_multiplier: int = 1) -> dict[str, Any]:
     greeks = row.greeks
     price = row.quote.mid_price
-    bid = row.quote.bid if row.quote.bid is not None and row.quote.bid > 0 else None
-    ask = row.quote.ask if row.quote.ask is not None and row.quote.ask > 0 else None
-    bid_ask_mid = row.quote.bid_ask_mid
-    bid_ask_spread = row.quote.bid_ask_spread
-    bid_ask_spread_pct = row.quote.bid_ask_spread_pct
+    raw_bid = row.quote.bid
+    raw_ask = row.quote.ask
+    bid_ask_status = _bid_ask_status(raw_bid, raw_ask)
+    bid = raw_bid if bid_ask_status == "valid" else None
+    ask = raw_ask if bid_ask_status == "valid" else None
+    bid_ask_mid = row.quote.bid_ask_mid if bid_ask_status == "valid" else None
+    bid_ask_spread = row.quote.bid_ask_spread if bid_ask_status == "valid" else None
+    bid_ask_spread_pct = row.quote.bid_ask_spread_pct if bid_ask_status == "valid" else None
     if side == "BUY":
         execution_price = ask if ask is not None else price
         execution_basis = "ask" if ask is not None else "analysis_price_proxy"
@@ -123,8 +136,11 @@ def _leg(row: EnrichedOptionQuote, side: str, quantity: int = 1, contract_multip
         "expiry": row.quote.maturity_date,
         "price": price,
         "price_basis": row.quote.price_basis,
+        "raw_bid": raw_bid,
+        "raw_ask": raw_ask,
         "bid": bid,
         "ask": ask,
+        "bid_ask_status": bid_ask_status,
         "bid_ask_mid": _round(bid_ask_mid, 4) if bid_ask_mid is not None else None,
         "bid_ask_spread": _round(bid_ask_spread, 4) if bid_ask_spread is not None else None,
         "bid_ask_spread_pct": _round(bid_ask_spread_pct, 8) if bid_ask_spread_pct is not None else None,
@@ -185,18 +201,21 @@ def _credit_execution_fields(
     wing_width = _short_iron_condor_wing_width(legs)
     net_execution = float(execution.get("net_execution_premium") or 0.0)
     mid_credit = max(-float(net_mid_premium), 0.0)
-    executable_credit = max(-net_execution, 0.0)
-    max_loss_at_execution = max(float(wing_width or 0.0) - executable_credit, 0.0) if wing_width is not None else None
-    credit_slippage = max(mid_credit - executable_credit, 0.0)
-    credit_pct_of_wing = executable_credit / wing_width if wing_width else None
-    credit_to_max_loss = executable_credit / max_loss_at_execution if max_loss_at_execution else None
+    is_executable = bool(execution.get("bid_ask_complete")) and bool(execution.get("bid_ask_valid", True))
+    executable_credit = max(-net_execution, 0.0) if is_executable else None
+    indicative_credit = None if is_executable else mid_credit
+    max_loss_at_execution = max(float(wing_width or 0.0) - executable_credit, 0.0) if wing_width is not None and executable_credit is not None else None
+    credit_slippage = max(mid_credit - executable_credit, 0.0) if executable_credit is not None else None
+    credit_pct_of_wing = executable_credit / wing_width if executable_credit is not None and wing_width else None
+    credit_to_max_loss = executable_credit / max_loss_at_execution if executable_credit is not None and max_loss_at_execution else None
+    indicative_credit_pct_of_wing = indicative_credit / wing_width if indicative_credit is not None and wing_width else None
     filters_enabled = min_credit_pct_of_wing_width is not None or max_bid_ask_spread_pct is not None
     no_trade_reasons: list[str] = []
 
-    if filters_enabled and not execution.get("bid_ask_complete"):
-        no_trade_reasons.append("bid/ask incomplete for executable credit")
-    if filters_enabled and executable_credit <= 0:
-        no_trade_reasons.append("executable_credit_points is non-positive")
+    if filters_enabled and not is_executable:
+        no_trade_reasons.append("bid/ask incomplete or invalid for executable credit")
+    if filters_enabled and (executable_credit is None or executable_credit <= 0):
+        no_trade_reasons.append("executable_credit_points is unavailable or non-positive")
     if min_credit_pct_of_wing_width is not None:
         if credit_pct_of_wing is None or credit_pct_of_wing < float(min_credit_pct_of_wing_width):
             no_trade_reasons.append("executable_credit_pct_of_wing_width below min_credit_pct_of_wing_width")
@@ -209,23 +228,28 @@ def _credit_execution_fields(
 
     return {
         "applies": True,
-        "basis": "sell_bid_buy_ask" if execution.get("bid_ask_complete") else "analysis_price_proxy",
+        "credit_quote_status": "executable" if is_executable else "indicative",
+        "is_executable": is_executable,
+        "basis": "sell_bid_buy_ask" if is_executable else "indicative_analysis_price_proxy",
         "mid_credit_points": _round(mid_credit, 4),
-        "executable_credit_points": _round(executable_credit, 4),
-        "credit_slippage_points": _round(credit_slippage, 4),
-        "credit_slippage_cash": _cash(credit_slippage, contract_multiplier),
+        "executable_credit_points": _round(executable_credit, 4) if executable_credit is not None else None,
+        "indicative_credit_points": _round(indicative_credit, 4) if indicative_credit is not None else None,
+        "credit_slippage_points": _round(credit_slippage, 4) if credit_slippage is not None else None,
+        "credit_slippage_cash": _cash(credit_slippage, contract_multiplier) if credit_slippage is not None else None,
         "wing_width_points": _round(wing_width, 4) if wing_width is not None else None,
         "max_loss_at_execution_points": _round(max_loss_at_execution, 4) if max_loss_at_execution is not None else None,
-        "executable_credit_cash": _cash(executable_credit, contract_multiplier),
+        "executable_credit_cash": _cash(executable_credit, contract_multiplier) if executable_credit is not None else None,
+        "indicative_credit_cash": _cash(indicative_credit, contract_multiplier) if indicative_credit is not None else None,
         "max_loss_at_execution_cash": _cash(max_loss_at_execution, contract_multiplier) if max_loss_at_execution is not None else None,
         "executable_credit_pct_of_wing_width": _round(credit_pct_of_wing, 8) if credit_pct_of_wing is not None else None,
+        "indicative_credit_pct_of_wing_width": _round(indicative_credit_pct_of_wing, 8) if indicative_credit_pct_of_wing is not None else None,
         "executable_credit_to_max_loss_at_execution": _round(credit_to_max_loss, 8) if credit_to_max_loss is not None else None,
         "quality_filters_enabled": filters_enabled,
         "min_credit_pct_of_wing_width": min_credit_pct_of_wing_width,
         "max_bid_ask_spread_pct_threshold": max_bid_ask_spread_pct,
         "passes_credit_quality": (not no_trade_reasons) if filters_enabled else None,
         "no_trade_reasons": no_trade_reasons,
-        "note": "For defined-risk credit structures, executable credit sells short legs at bid and buys wings at ask when bid/ask are available; this remains a pre-trade feasibility proxy, not a live fill guarantee.",
+        "note": "For defined-risk credit structures, credit is marked executable only when every leg has a valid bid/ask with ask >= bid; otherwise credit fields are indicative analysis-price proxies, not live fill guarantees.",
     }
 
 
@@ -238,7 +262,11 @@ def _execution_summary(
     net_execution = _round(_net_execution_premium(legs), 4) or 0.0
     slippage_points = _round(sum(float(leg.get("slippage_points") or 0.0) * int(leg.get("quantity") or 1) for leg in legs), 4) or 0.0
     spread_pcts = [float(leg["bid_ask_spread_pct"]) for leg in legs if leg.get("bid_ask_spread_pct") is not None]
-    bid_ask_complete = all(leg.get("bid") is not None and leg.get("ask") is not None for leg in legs)
+    bid_ask_statuses = [str(leg.get("bid_ask_status") or "missing") for leg in legs]
+    invalid_bid_ask_count = sum(1 for status in bid_ask_statuses if status.startswith("invalid"))
+    missing_bid_ask_count = sum(1 for status in bid_ask_statuses if status == "missing")
+    bid_ask_valid = invalid_bid_ask_count == 0
+    bid_ask_complete = all(status == "valid" for status in bid_ask_statuses)
     avg_spread_pct = _round(sum(spread_pcts) / len(spread_pcts), 8) if spread_pcts else None
     max_spread_pct = _round(max(spread_pcts), 8) if spread_pcts else None
     slippage_pct = _round(slippage_points / abs(net_mid_premium), 8) if net_mid_premium else None
@@ -267,6 +295,9 @@ def _execution_summary(
         grade = "poor"
     return {
         "bid_ask_complete": bid_ask_complete,
+        "bid_ask_valid": bid_ask_valid,
+        "invalid_bid_ask_count": invalid_bid_ask_count,
+        "missing_bid_ask_count": missing_bid_ask_count,
         "net_mid_premium": net_mid_premium,
         "net_execution_premium": net_execution,
         "slippage_points": slippage_points,
@@ -448,7 +479,7 @@ def _margin_fields(
     elif max_loss is None:
         max_loss_at_execution = None
         max_loss_at_execution_cash = None
-    elif net_execution_premium is not None and float(net_execution_premium) > 0:
+    elif net_execution_premium is not None and execution.get("bid_ask_complete") and float(net_execution_premium) > 0:
         max_loss_at_execution = max(float(max_loss), float(net_execution_premium))
         max_loss_at_execution_cash = _cash(max_loss_at_execution, contract_multiplier)
     else:
