@@ -7,6 +7,7 @@ summary, and Feishu-ready payload into one side-effect-free research package.
 from __future__ import annotations
 
 from collections.abc import Iterable
+import shlex
 from typing import Any
 
 from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE
@@ -53,6 +54,22 @@ def _render_markdown(pack: dict[str, Any]) -> str:
         "- This pack is an auditable research workflow, not an execution instruction.",
     ]
     return "\n".join(line for line in lines if line is not None).strip() + "\n"
+
+
+def _fmt_cli_value(value: Any) -> str:
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def _append_option(args: list[str], flag: str, value: Any) -> None:
+    if value is None:
+        return
+    args.extend([flag, _fmt_cli_value(value)])
+
+
+def _command_string(args: list[str]) -> str:
+    return " ".join(shlex.quote(str(arg)) for arg in args)
 
 
 def build_option_research_pack(
@@ -140,3 +157,84 @@ def build_option_research_pack(
     }
     pack["markdown"] = _render_markdown(pack)
     return pack
+
+
+def build_option_research_pack_hermes_cron_spec(
+    symbol: str,
+    trade_date: str | None = None,
+    expiry: str | None = None,
+    strategy_type: str | None = None,
+    directional_bias: str | None = "neutral",
+    volatility_view: str | None = None,
+    review_dates: Iterable[str] | None = None,
+    risk_budget_cash: float | None = None,
+    risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
+    min_credit_pct_of_wing_width: float | None = None,
+    max_bid_ask_spread_pct: float | None = None,
+    target: str | None = None,
+    schedule: str = "0 8 * * 1-5",
+    output_dir: str | None = None,
+    script_path: str = "scripts/build_option_research_pack.py",
+) -> dict[str, Any]:
+    """Describe a Hermes no-agent cron handoff for research-pack Markdown.
+
+    The spec is side-effect-free. It does not create a cron job; it records the
+    concrete command that should print non-empty Markdown stdout for Hermes to
+    deliver to ``target``.
+    """
+    pack = build_option_research_pack(
+        symbol,
+        trade_date=trade_date,
+        expiry=expiry,
+        strategy_type=strategy_type,
+        directional_bias=directional_bias,
+        volatility_view=volatility_view,
+        review_dates=review_dates,
+        risk_budget_cash=risk_budget_cash,
+        risk_free_rate=risk_free_rate,
+        min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
+        max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+        delivery_target=target,
+    )
+    deliver_target = target or "feishu"
+    args = [script_path, symbol]
+    _append_option(args, "--date", trade_date)
+    _append_option(args, "--expiry", expiry)
+    _append_option(args, "--strategy-type", strategy_type)
+    _append_option(args, "--directional-bias", directional_bias)
+    _append_option(args, "--volatility-view", volatility_view)
+    for review_date in review_dates or []:
+        _append_option(args, "--review-date", review_date)
+    _append_option(args, "--risk-budget-cash", risk_budget_cash)
+    _append_option(args, "--min-credit-pct-of-wing-width", min_credit_pct_of_wing_width)
+    _append_option(args, "--max-bid-ask-spread-pct", max_bid_ask_spread_pct)
+    _append_option(args, "--target", deliver_target)
+    _append_option(args, "--output-dir", output_dir)
+    args.extend(["--stdout", "markdown"])
+    command = _command_string(args)
+    return {
+        "scheduler": "hermes_cron",
+        "no_agent": True,
+        "schedule": schedule,
+        "deliver": deliver_target,
+        "script_path": script_path,
+        "command": command,
+        "stdout_mode": "markdown",
+        "delivery_note": "Hermes no-agent cron delivers non-empty stdout to the configured Feishu target; empty stdout is silent.",
+        "payload_preview": {
+            "title": pack["summary"].get("report_title"),
+            "product": pack["product"],
+            "trade_date": pack["trade_date"],
+            "selection_mode": pack["selection_mode"],
+            "selected_strategy": pack["selected_strategy"],
+            "target": deliver_target,
+            "message_length": len(pack["markdown"]),
+        },
+        "artifacts": {
+            "output_dir": output_dir,
+            "writes_pack_json": True,
+            "writes_markdown": True,
+            "writes_feishu_payload_json": True,
+        },
+        "side_effect_free": True,
+    }

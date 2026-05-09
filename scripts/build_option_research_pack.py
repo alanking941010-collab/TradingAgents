@@ -17,7 +17,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tradingagents.options.research_pack import build_option_research_pack  # noqa: E402
+from tradingagents.options.research_pack import (  # noqa: E402
+    build_option_research_pack,
+    build_option_research_pack_hermes_cron_spec,
+)
 
 DEFAULT_OUTPUT_DIR = Path("/mnt/e/cautious_twinkle/outputs/tradingagents/options/research_packs")
 
@@ -59,12 +62,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Optional bid/ask quality filter",
     )
     parser.add_argument("--target", dest="delivery_target", default="feishu", help="Dry-run Feishu/Hermes target label")
+    parser.add_argument("--cron-schedule", default="0 8 * * 1-5", help="Schedule used when printing a Hermes no-agent cron spec")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument(
         "--stdout",
-        choices=["summary-json", "markdown", "none"],
+        choices=["summary-json", "markdown", "hermes-cron-spec", "none"],
         default="summary-json",
-        help="Print JSON summary, research-pack Markdown, or nothing. Files are always written.",
+        help="Print JSON summary, research-pack Markdown, Hermes cron spec, or nothing. Files are always written.",
     )
     return parser
 
@@ -125,6 +129,28 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(summary, ensure_ascii=False, indent=2, default=str))
     elif args.stdout == "markdown":
         print(pack["markdown"], end="")
+    elif args.stdout == "hermes-cron-spec":
+        spec = build_option_research_pack_hermes_cron_spec(
+            args.symbol,
+            trade_date=args.trade_date,
+            expiry=args.expiry,
+            strategy_type=args.strategy_type,
+            directional_bias=args.directional_bias,
+            volatility_view=args.volatility_view,
+            review_dates=args.review_dates,
+            risk_budget_cash=args.risk_budget_cash,
+            min_credit_pct_of_wing_width=args.min_credit_pct_of_wing_width,
+            max_bid_ask_spread_pct=args.max_bid_ask_spread_pct,
+            target=args.delivery_target,
+            schedule=args.cron_schedule,
+            output_dir=str(output_dir),
+        )
+        spec["current_run_artifacts"] = {
+            "output_pack": str(pack_path),
+            "output_markdown": str(markdown_path),
+            "output_payload": str(payload_path),
+        }
+        print(json.dumps(spec, ensure_ascii=False, indent=2, default=str))
     return 0
 
 

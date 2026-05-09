@@ -42,6 +42,7 @@ def test_options_symbol_enables_options_tools_and_volatility_first_prompt_for_ma
     assert "get_option_analytics_report" in llm.bound_tool_names
     assert "get_option_strategy_replay" in llm.bound_tool_names
     assert "get_option_research_pack" in llm.bound_tool_names
+    assert "get_option_research_pack_hermes_cron_spec" in llm.bound_tool_names
     prompt = "\n".join(llm.prompt_messages).lower()
     assert "volatility-first" in prompt
     assert "research pack" in prompt
@@ -96,3 +97,4 @@ def test_trading_graph_tool_nodes_include_options_tools_for_analyst_tool_executi
     assert "get_option_analytics_report" in getattr(tool_nodes["market"], "tools_by_name", {})
     assert "get_option_strategy_replay" in getattr(tool_nodes["market"], "tools_by_name", {})
     assert "get_option_research_pack" in getattr(tool_nodes["market"], "tools_by_name", {})
+    assert "get_option_research_pack_hermes_cron_spec" in getattr(tool_nodes["market"], "tools_by_name", {})

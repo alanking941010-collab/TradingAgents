@@ -16,6 +16,7 @@ from tradingagents.agents.utils.options_tools import (
     get_option_feishu_delivery_payload,
     get_option_hermes_cron_delivery_spec,
     get_option_research_pack,
+    get_option_research_pack_hermes_cron_spec,
     get_option_strategy_candidate,
     get_option_strategy_replay,
     get_option_strategy_report,
@@ -69,6 +70,7 @@ def augment_tools_for_options(
             get_option_strategy_report,
             get_option_strategy_selection,
             get_option_research_pack,
+            get_option_research_pack_hermes_cron_spec,
             get_option_feishu_delivery_payload,
             get_option_hermes_cron_delivery_spec,
         ):
@@ -91,6 +93,7 @@ def options_analyst_instruction(symbol: str | None, analyst_role: str) -> str:
         "Do not recalculate IV/Greeks/GEX/DEX in the LLM; treat the tool JSON as the source of truth. "
         "Default price basis is option close + futures close, with r = 1.5%; use settlement only for explicit settlement/risk-control requests. "
         "Use get_option_strategy_report when a Markdown-ready report is needed, use get_option_strategy_selection when ranking candidate strategies by volatility surface, execution, margin, risk budget, and portfolio-level candidate comparison, and use get_option_research_pack when a unified side-effect-free research pack should combine selection, portfolio summary, selected report, replay, and dry-run Feishu payload. "
+        "Use get_option_research_pack_hermes_cron_spec when preparing a Hermes no-agent cron handoff for a research-pack Markdown stdout delivery. "
         "Use get_option_feishu_delivery_payload only to build a side-effect-free Feishu payload for an external sender. "
         "Use get_option_hermes_cron_delivery_spec when preparing a Hermes no-agent cron job that delivers report stdout to Feishu. "
         "GEX/DEX are exchange-OI scenario/concentration metrics because dealer position is unknown. "
