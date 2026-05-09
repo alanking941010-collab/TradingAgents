@@ -211,6 +211,35 @@ The pack returns:
 can request one auditable research bundle instead of separately calling selector,
 report, replay, and Feishu-payload tools.
 
+Phase 19B adds a local CLI entrypoint:
+
+```text
+scripts/build_option_research_pack.py
+```
+
+Example:
+
+```bash
+python scripts/build_option_research_pack.py CU \
+  --date 2026-05-01 \
+  --expiry 20260625 \
+  --directional-bias neutral \
+  --volatility-view range_bound_high_iv \
+  --risk-budget-cash 6000 \
+  --output-dir /mnt/e/cautious_twinkle/outputs/tradingagents/options/research_packs
+```
+
+The CLI always writes three local artifacts:
+
+- `*_research_pack.json` — full audit pack;
+- `*_research_pack.md` — Markdown handoff;
+- `*_feishu_payload.json` — dry-run Feishu payload.
+
+`--stdout summary-json` prints a compact artifact summary, `--stdout markdown`
+prints the pack Markdown for downstream delivery, and `--stdout none` stays
+quiet after writing files. The CLI remains side-effect-free and does not send
+Feishu messages or orders.
+
 Phase 14A adds an explicit send boundary and Hermes cron-ready entrypoint:
 
 ```text
@@ -255,6 +284,7 @@ the original graph:
 - Phase 18A adds portfolio-level candidate comparison and risk summary inside the selector output: selected-strategy risk-budget utilization, all-tradable candidate margin/max-loss totals, highest-margin/lowest-max-loss structures, watchlist/no-trade rows, and a Markdown `Portfolio Risk Summary` table.
 - Phase 18B enhances replay/backtest output with `performance_summary`: win/lose/flat distribution, win rate, average/final PnL cash, max drawdown cash, per-date PnL path, close-based IV-regime buckets, and report payload/Markdown exposure.
 - Phase 19A adds a unified side-effect-free research pack: selector auto-pick or explicit strategy override, Phase 18A portfolio summary, selected strategy report, optional Phase 18B replay performance, dry-run Feishu payload, and one Markdown handoff.
+- Phase 19B adds `scripts/build_option_research_pack.py` so the research pack can be generated from a local CLI with JSON/Markdown/dry-run Feishu-payload artifacts and configurable stdout.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -270,12 +300,13 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures and, for `short_iron_condor`, execution-adjusted max loss based on executable credit when bid/ask are available; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
 - Credit execution model: supported credit structures use bid/ask feasibility (`SELL` at bid, `BUY` at ask) to report executable credit, credit slippage, credit/wing-width ratio, and optional no-trade filters. This is still an indicative pre-trade proxy, not a guaranteed live fill.
 - Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled. Phase 18B performance summaries group replay marks by close-derived ATM-IV regime for diagnostics only, not executable volatility quotes.
-- Report/delivery model: reports are Markdown + audit payloads; Feishu payloads are side-effect-free handoffs and require an external sender to publish. Research packs are also side-effect-free orchestration outputs; their embedded Feishu payload is dry-run by default and should not be interpreted as a sent message. Phase 14A live sends require an injected sender callable, while scheduled Hermes delivery should use no-agent cron with `scripts/deliver_option_strategy_report.py --stdout message`.
+- Report/delivery model: reports are Markdown + audit payloads; Feishu payloads are side-effect-free handoffs and require an external sender to publish. Research packs are also side-effect-free orchestration outputs; their embedded Feishu payload is dry-run by default and should not be interpreted as a sent message. `scripts/build_option_research_pack.py` writes local research-pack artifacts only; `--stdout markdown` is a handoff stream, not delivery proof. Phase 14A live sends require an injected sender callable, while scheduled Hermes delivery should use no-agent cron with `scripts/deliver_option_strategy_report.py --stdout message`.
 
 ## Verification
 
 ```bash
 cd /mnt/e/cautious_twinkle/projects/TradingAgents
+.venv/bin/python -m pytest tests/test_options_phase19b_research_pack_cli.py tests/test_options_phase19a_research_pack.py -q
 .venv/bin/python -m pytest tests/test_options_phase19a_research_pack.py tests/test_options_analyst_integration.py -q
 .venv/bin/python -m pytest tests/test_options_tools.py -q
 .venv/bin/python -m pytest -q
