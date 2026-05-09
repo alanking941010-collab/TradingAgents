@@ -165,7 +165,7 @@ class OptionAnalyticsReport:
             f"- Underlying: {self.underlying_symbol} @ {self.underlying_price:.4f}",
             f"- Price basis: option={self.price_basis.get('option_price_basis', 'unknown')} / underlying={self.price_basis.get('underlying_price_basis', 'unknown')}",
             f"- ATM IV: {fmt(self.atm_iv)}",
-            f"- Skew: {fmt(self.skew_25d)}",
+            f"- 25Δ skew: {fmt(self.skew_25d)} (method {self.vol_surface.get('skew', {}).get('method', 'unknown') if self.vol_surface else 'unknown'})",
             f"- Term regime: {self.vol_surface.get('term_regime', {}).get('shape', 'N/A')}",
             f"- Risk reversal proxy: {fmt(self.vol_surface.get('skew', {}).get('risk_reversal_proxy') if self.vol_surface else None)}",
             f"- PCR OI: {fmt(self.pcr_open_interest)}",

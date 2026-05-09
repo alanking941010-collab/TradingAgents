@@ -100,21 +100,110 @@ def _term_structure(enriched: list[EnrichedOptionQuote]) -> dict[str, float]:
     return {maturity: mean(values) for maturity, values in grouped.items() if values}
 
 
-def _skew(snapshot: OptionChainSnapshot, enriched: list[EnrichedOptionQuote]) -> float | None:
+def _delta_iv_at_target(
+    expiry_rows: list[EnrichedOptionQuote],
+    option_type: str,
+    target_delta: float,
+) -> dict[str, float | str | None]:
+    """Return IV at a target Black-76 delta using same-expiry delta interpolation.
+
+    For 25-delta skew we should not choose options by a fixed moneyness
+    heuristic (for example 97%/103% strike).  Use the already computed
+    Black-76 delta surface, interpolate IV by delta when the target is
+    bracketed, and only fall back to the nearest listed delta when the chain is
+    too narrow to bracket the target.
+    """
+    candidates = []
+    for row in expiry_rows:
+        if row.quote.call_put != option_type or row.greeks is None or row.implied_volatility is None:
+            continue
+        candidates.append(
+            {
+                "delta": float(row.greeks.delta),
+                "iv": float(row.implied_volatility),
+                "strike": float(row.quote.strike),
+                "ts_code": row.quote.ts_code,
+            }
+        )
+    if not candidates:
+        return {"iv": None, "delta": None, "strike": None, "ts_code": None, "component_method": "unavailable"}
+
+    candidates.sort(key=lambda item: item["delta"])
+    for item in candidates:
+        if abs(float(item["delta"]) - target_delta) <= 1e-6:
+            return {
+                "iv": item["iv"],
+                "delta": item["delta"],
+                "strike": item["strike"],
+                "ts_code": item["ts_code"],
+                "component_method": "exact_delta",
+            }
+
+    for lower, upper in zip(candidates, candidates[1:]):
+        lower_delta = float(lower["delta"])
+        upper_delta = float(upper["delta"])
+        if lower_delta <= target_delta <= upper_delta and upper_delta != lower_delta:
+            weight = (target_delta - lower_delta) / (upper_delta - lower_delta)
+            iv = float(lower["iv"]) + weight * (float(upper["iv"]) - float(lower["iv"]))
+            strike = float(lower["strike"]) + weight * (float(upper["strike"]) - float(lower["strike"]))
+            return {
+                "iv": iv,
+                "delta": target_delta,
+                "strike": strike,
+                "ts_code": None,
+                "component_method": "interpolated_delta",
+                "lower_delta": lower_delta,
+                "upper_delta": upper_delta,
+                "lower_strike": lower["strike"],
+                "upper_strike": upper["strike"],
+            }
+
+    nearest = min(candidates, key=lambda item: abs(float(item["delta"]) - target_delta))
+    return {
+        "iv": nearest["iv"],
+        "delta": nearest["delta"],
+        "strike": nearest["strike"],
+        "ts_code": nearest["ts_code"],
+        "component_method": "nearest_delta_fallback",
+    }
+
+
+def _skew_25d_summary(enriched: list[EnrichedOptionQuote]) -> dict[str, float | str | None]:
     rows = [row for row in enriched if row.implied_volatility is not None]
     if not rows:
-        return None
+        return {
+            "method": "delta_25",
+            "put_call_skew": None,
+            "put_25d_iv": None,
+            "call_25d_iv": None,
+            "put_25d_delta": None,
+            "call_25d_delta": None,
+            "put_25d_strike": None,
+            "call_25d_strike": None,
+            "put_component_method": "unavailable",
+            "call_component_method": "unavailable",
+        }
     nearest_expiry = min(row.quote.maturity_date for row in rows)
     expiry_rows = [row for row in rows if row.quote.maturity_date == nearest_expiry]
-    puts = [row for row in expiry_rows if row.quote.call_put == "P" and row.quote.strike <= snapshot.underlying_price]
-    calls = [row for row in expiry_rows if row.quote.call_put == "C" and row.quote.strike >= snapshot.underlying_price]
-    if not puts or not calls:
-        return None
-    put = min(puts, key=lambda row: abs(row.quote.strike / snapshot.underlying_price - 0.97))
-    call = min(calls, key=lambda row: abs(row.quote.strike / snapshot.underlying_price - 1.03))
-    if put.implied_volatility is None or call.implied_volatility is None:
-        return None
-    return put.implied_volatility - call.implied_volatility
+    put = _delta_iv_at_target(expiry_rows, "P", -0.25)
+    call = _delta_iv_at_target(expiry_rows, "C", 0.25)
+    put_iv = put.get("iv")
+    call_iv = call.get("iv")
+    put_call_skew = float(put_iv) - float(call_iv) if put_iv is not None and call_iv is not None else None
+    return {
+        "method": "delta_25",
+        "put_call_skew": _round(put_call_skew),
+        "put_25d_iv": _round(float(put_iv)) if put_iv is not None else None,
+        "call_25d_iv": _round(float(call_iv)) if call_iv is not None else None,
+        "put_25d_delta": _round(float(put["delta"])) if put.get("delta") is not None else None,
+        "call_25d_delta": _round(float(call["delta"])) if call.get("delta") is not None else None,
+        "put_25d_strike": _round(float(put["strike"]), 4) if put.get("strike") is not None else None,
+        "call_25d_strike": _round(float(call["strike"]), 4) if call.get("strike") is not None else None,
+        "put_25d_ts_code": put.get("ts_code"),
+        "call_25d_ts_code": call.get("ts_code"),
+        "put_component_method": str(put.get("component_method")),
+        "call_component_method": str(call.get("component_method")),
+    }
 
 
 def _round(value: float | None, digits: int = 8) -> float | None:
@@ -138,14 +227,30 @@ def _bucket_summary(rows: list[EnrichedOptionQuote], target_strike: float | None
     }
 
 
-def _vol_surface(snapshot: OptionChainSnapshot, enriched: list[EnrichedOptionQuote], term_structure: dict[str, float], skew_25d: float | None) -> dict[str, object]:
+def _vol_surface(
+    snapshot: OptionChainSnapshot,
+    enriched: list[EnrichedOptionQuote],
+    term_structure: dict[str, float],
+    skew_25d_summary: dict[str, float | str | None],
+) -> dict[str, object]:
     rows = [row for row in enriched if row.implied_volatility is not None]
     if not rows:
         return {
             "underlying_price": snapshot.underlying_price,
             "nearest_expiry": None,
             "moneyness_buckets": {},
-            "skew": {"put_call_skew": None, "risk_reversal_proxy": None, "smile_curvature_proxy": None},
+            "skew": {
+                "method": "delta_25",
+                "put_call_skew": None,
+                "put_25d_iv": None,
+                "call_25d_iv": None,
+                "put_25d_delta": None,
+                "call_25d_delta": None,
+                "put_25d_strike": None,
+                "call_25d_strike": None,
+                "risk_reversal_proxy": None,
+                "smile_curvature_proxy": None,
+            },
             "term_regime": {"shape": "no_iv", "front_expiry": None, "back_expiry": None, "front_iv": None, "back_iv": None, "slope": None},
         }
 
@@ -196,10 +301,10 @@ def _vol_surface(snapshot: OptionChainSnapshot, enriched: list[EnrichedOptionQuo
         "nearest_expiry": nearest_expiry,
         "moneyness_buckets": buckets,
         "skew": {
-            "put_call_skew": _round(skew_25d),
+            **skew_25d_summary,
             "risk_reversal_proxy": _round(risk_reversal),
             "smile_curvature_proxy": _round(curvature),
-            "note": "put_call_skew is put IV minus call IV; risk_reversal_proxy is call IV minus put IV for nearest-expiry OTM buckets.",
+            "note": "put_call_skew is true 25Δ put IV minus true 25Δ call IV using Black-76 delta interpolation on the nearest expiry when bracketed; risk_reversal_proxy remains the legacy nearest-expiry OTM-bucket call IV minus put IV diagnostic.",
         },
         "term_regime": {
             "front_expiry": front_expiry,
@@ -275,7 +380,9 @@ def analyze_option_chain(
     put_vol = sum(row.volume for row in snapshot.options if row.call_put == "P")
     exposure = _exposure(enriched)
     term_structure = _term_structure(enriched)
-    skew_25d = _skew(snapshot, enriched)
+    skew_25d_summary = _skew_25d_summary(enriched)
+    skew_25d_value = skew_25d_summary.get("put_call_skew")
+    skew_25d = float(skew_25d_value) if isinstance(skew_25d_value, (int, float)) else None
     return OptionAnalyticsReport(
         product=snapshot.product,
         trade_date=snapshot.trade_date,
@@ -284,7 +391,7 @@ def analyze_option_chain(
         atm_iv=_atm_iv(snapshot, enriched),
         skew_25d=skew_25d,
         term_structure=term_structure,
-        vol_surface=_vol_surface(snapshot, enriched, term_structure, skew_25d),
+        vol_surface=_vol_surface(snapshot, enriched, term_structure, skew_25d_summary),
         pcr_open_interest=_safe_ratio(put_oi, call_oi),
         pcr_volume=_safe_ratio(put_vol, call_vol),
         call_wall=_wall(snapshot.options, "C"),

@@ -36,7 +36,7 @@ Public deterministic helpers:
 Phase 16 enriches the analytics payload with `vol_surface`:
 
 - `moneyness_buckets`: per-expiry `otm_put`, `atm`, and `otm_call` IV buckets with representative strike and option count.
-- `skew`: `put_call_skew`, `risk_reversal_proxy`, and `smile_curvature_proxy` for the nearest expiry.
+- `skew`: true 25-delta `put_call_skew` (25Δ put IV minus 25Δ call IV) for the nearest expiry, with `put_25d_iv`, `call_25d_iv`, selected/interpolated strikes and deltas, plus legacy `risk_reversal_proxy` and `smile_curvature_proxy` diagnostics.
 - `term_regime`: front/back expiry IV, slope, and shape (`contango`, `backwardation`, `flat`, or `single_expiry`).
 
 These are deterministic summaries of available chain rows. They are volatility-surface diagnostics for agent interpretation, not dealer-position or executable-vol quotes.
@@ -301,6 +301,7 @@ the original graph:
 - Phase 19B adds `scripts/build_option_research_pack.py` so the research pack can be generated from a local CLI with JSON/Markdown/dry-run Feishu-payload artifacts and configurable stdout.
 - Phase 19C adds a Hermes/Feishu handoff spec for research packs: `build_option_research_pack_hermes_cron_spec`, `get_option_research_pack_hermes_cron_spec`, and CLI `--stdout hermes-cron-spec` document no-agent cron delivery via Markdown stdout without creating jobs or sending messages.
 - Phase 20A cleanup tightens audit contracts: explicit `trade_date` now defaults to exact option-chain matching unless `date_mode="asof"` is requested, snapshots expose requested/resolved/fallback date metadata and option/underlying price-basis details, and research-pack summaries expose selected-strategy risk-budget utilization from the portfolio summary.
+- Phase 20B cleanup replaces the old 3%/97%-103% moneyness skew proxy with true nearest-expiry 25-delta skew: `skew_25d` is 25Δ put IV minus 25Δ call IV using Black-76 delta interpolation when bracketed, while moneyness bucket risk-reversal remains exposed separately as a legacy diagnostic proxy.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -312,7 +313,7 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Date resolution: omitting `trade_date` still selects the latest available option chain; providing `trade_date` defaults to exact matching. Use `date_mode="asof"` only when an explicit as-of fallback is intended, and inspect requested/resolved/fallback metadata.
 - GEX/DEX are scenario/concentration metrics inferred from exchange OI; exchange OI does not reveal verified dealer inventory.
 - Contract multipliers are applied from static SHFE futures contract specifications for cash premium, max loss, max profit, notional, and scenario PnL fields. Option-price-point fields remain available for audit.
-- Volatility-surface model: `vol_surface` buckets are computed from available option close-based IV rows by expiry/moneyness; risk-reversal and smile-curvature proxies are diagnostics, not executable volatility quotes.
+- Volatility-surface model: `vol_surface` buckets are computed from available option close-based IV rows by expiry/moneyness; `skew_25d` is true nearest-expiry 25Δ put IV minus 25Δ call IV from Black-76 delta interpolation when the target delta is bracketed, with nearest-delta fallback metadata when the listed chain is too narrow. Risk-reversal and smile-curvature proxies are separate moneyness-bucket diagnostics, not executable volatility quotes.
 - Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures and, for `short_iron_condor`, execution-adjusted max loss based on executable credit when bid/ask are available; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
 - Credit execution model: supported credit structures use bid/ask feasibility (`SELL` at bid, `BUY` at ask) to report executable credit, credit slippage, credit/wing-width ratio, and optional no-trade filters. This is still an indicative pre-trade proxy, not a guaranteed live fill.
 - Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled. Phase 18B performance summaries group replay marks by close-derived ATM-IV regime for diagnostics only, not executable volatility quotes.
