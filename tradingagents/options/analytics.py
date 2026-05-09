@@ -299,4 +299,5 @@ def analyze_option_chain(
             "GEX/DEX are scenario/concentration metrics inferred from exchange OI, not verified dealer inventory",
             "contract_multiplier_not_applied: Phase-1 exposure is relative unless multiplier enrichment is added",
         ],
+        price_basis=snapshot.price_basis,
     )

@@ -25,10 +25,18 @@ class OptionQuote:
     ask: float | None = None
 
     @property
+    def price_basis(self) -> str:
+        if self.close is not None and self.close > 0:
+            return "close"
+        if self.settle is not None and self.settle > 0:
+            return "settle_fallback"
+        return "unavailable"
+
+    @property
     def mid_price(self) -> float | None:
         # Trading-analysis default follows Alan's convention: option close
-        # with futures close. Settlement price should be used only when a
-        # settlement/risk-control basis is explicitly requested upstream.
+        # with futures close. If close is unavailable, settle is an explicit
+        # fallback and must be exposed via price_basis metadata.
         if self.close is not None and self.close > 0:
             return self.close
         if self.settle is not None and self.settle > 0:
@@ -67,6 +75,35 @@ class OptionChainSnapshot:
     underlying_price: float
     options: list[OptionQuote]
     source: str
+    requested_trade_date: str | None = None
+    trade_date_mode: str = "latest"
+    trade_date_fallback_used: bool = False
+    underlying_price_trade_date: str | None = None
+    underlying_price_basis: str = "close"
+
+    @property
+    def option_price_basis(self) -> str:
+        bases = {row.price_basis for row in self.options}
+        if not bases:
+            return "unavailable"
+        if bases == {"close"}:
+            return "close"
+        if bases == {"settle_fallback"}:
+            return "settle_fallback"
+        return "mixed"
+
+    @property
+    def price_basis(self) -> dict[str, object]:
+        return {
+            "analysis_basis": "option close + futures close with explicit fallback metadata",
+            "option_price_basis": self.option_price_basis,
+            "underlying_price_basis": self.underlying_price_basis,
+            "requested_trade_date": self.requested_trade_date,
+            "resolved_trade_date": self.trade_date,
+            "trade_date_mode": self.trade_date_mode,
+            "trade_date_fallback_used": self.trade_date_fallback_used,
+            "underlying_price_trade_date": self.underlying_price_trade_date,
+        }
 
 
 @dataclass(frozen=True)
@@ -113,6 +150,7 @@ class OptionAnalyticsReport:
     exposure: ExposureSummary
     options: list[EnrichedOptionQuote]
     assumptions: list[str]
+    price_basis: dict[str, object] = field(default_factory=dict)
 
     def to_markdown(self) -> str:
         def fmt(value: float | None, digits: int = 4) -> str:
@@ -125,6 +163,7 @@ class OptionAnalyticsReport:
             "",
             f"- Trade date: {self.trade_date}",
             f"- Underlying: {self.underlying_symbol} @ {self.underlying_price:.4f}",
+            f"- Price basis: option={self.price_basis.get('option_price_basis', 'unknown')} / underlying={self.price_basis.get('underlying_price_basis', 'unknown')}",
             f"- ATM IV: {fmt(self.atm_iv)}",
             f"- Skew: {fmt(self.skew_25d)}",
             f"- Term regime: {self.vol_surface.get('term_regime', {}).get('shape', 'N/A')}",

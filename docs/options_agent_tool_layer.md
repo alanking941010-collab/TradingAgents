@@ -300,6 +300,7 @@ the original graph:
 - Phase 19A adds a unified side-effect-free research pack: selector auto-pick or explicit strategy override, Phase 18A portfolio summary, selected strategy report, optional Phase 18B replay performance, dry-run Feishu payload, and one Markdown handoff.
 - Phase 19B adds `scripts/build_option_research_pack.py` so the research pack can be generated from a local CLI with JSON/Markdown/dry-run Feishu-payload artifacts and configurable stdout.
 - Phase 19C adds a Hermes/Feishu handoff spec for research packs: `build_option_research_pack_hermes_cron_spec`, `get_option_research_pack_hermes_cron_spec`, and CLI `--stdout hermes-cron-spec` document no-agent cron delivery via Markdown stdout without creating jobs or sending messages.
+- Phase 20A cleanup tightens audit contracts: explicit `trade_date` now defaults to exact option-chain matching unless `date_mode="asof"` is requested, snapshots expose requested/resolved/fallback date metadata and option/underlying price-basis details, and research-pack summaries expose selected-strategy risk-budget utilization from the portfolio summary.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -307,8 +308,8 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 
 - Model: Black-76 futures option model.
 - Default risk-free rate: `0.015`.
-- Default price basis: option `close` + futures `close`.
-- Settlement basis is only for explicit settlement/risk-control requests.
+- Default price basis: option `close` + futures `close`; if a close is unavailable and settle fallback is used by the analytical price, payloads expose explicit `price_basis` metadata rather than treating the fallback as the default.
+- Date resolution: omitting `trade_date` still selects the latest available option chain; providing `trade_date` defaults to exact matching. Use `date_mode="asof"` only when an explicit as-of fallback is intended, and inspect requested/resolved/fallback metadata.
 - GEX/DEX are scenario/concentration metrics inferred from exchange OI; exchange OI does not reveal verified dealer inventory.
 - Contract multipliers are applied from static SHFE futures contract specifications for cash premium, max loss, max profit, notional, and scenario PnL fields. Option-price-point fields remain available for audit.
 - Volatility-surface model: `vol_surface` buckets are computed from available option close-based IV rows by expiry/moneyness; risk-reversal and smile-curvature proxies are diagnostics, not executable volatility quotes.

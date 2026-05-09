@@ -37,6 +37,7 @@ def _render_markdown(pack: dict[str, Any]) -> str:
         f"- Selected decision: {summary.get('selected_decision')}",
         f"- Selected score: {summary.get('selected_score')}",
         f"- Risk budget cash: {summary.get('risk_budget_cash')}",
+        f"- Risk budget utilization: {summary.get('selected_risk_budget_utilization')}",
         f"- Risk budget status: {summary.get('risk_budget_status')}",
         f"- Worst scenario PnL cash: {summary.get('worst_scenario_pnl_cash')}",
         f"- Replay max drawdown cash: {summary.get('replay_max_drawdown_cash')}",
@@ -118,6 +119,7 @@ def build_option_research_pack(
     )
     delivery_payload = build_feishu_delivery_payload(report, target=delivery_target, dry_run=True)
     selected_row = _find_ranked_row(selection, selected_strategy) or {}
+    selected_portfolio_row = (selection.get("portfolio_summary", {}) or {}).get("selected_strategy") or {}
     report_summary = report.get("summary", {})
     pack = {
         "pack_type": "shfe_option_research_pack",
@@ -132,7 +134,7 @@ def build_option_research_pack(
             "selected_score": selected_row.get("score"),
             "risk_budget_cash": risk_budget_cash,
             "risk_budget_status": report_summary.get("risk_budget_status") or selected_row.get("risk_budget_status"),
-            "selected_risk_budget_utilization": selection.get("portfolio_summary", {}).get("selected_risk_budget_utilization"),
+            "selected_risk_budget_utilization": selected_portfolio_row.get("risk_budget_utilization"),
             "execution_liquidity_grade": report_summary.get("execution_liquidity_grade"),
             "worst_scenario_pnl_cash": report_summary.get("worst_scenario_pnl_cash"),
             "replay_final_pnl_cash": report_summary.get("replay_final_pnl_cash"),

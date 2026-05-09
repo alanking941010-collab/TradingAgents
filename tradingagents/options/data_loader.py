@@ -95,17 +95,35 @@ def _table_exists(con: sqlite3.Connection, table_or_view: str) -> bool:
     return row is not None
 
 
-def _latest_trade_date(con: sqlite3.Connection, product: str, trade_date: str | None) -> str:
+def _latest_trade_date(
+    con: sqlite3.Connection,
+    product: str,
+    trade_date: str | None,
+    date_mode: str,
+) -> tuple[str, bool]:
     if trade_date:
         ymd = format_ymd(trade_date)
-        row = con.execute(
-            """
-            select max(trade_date) as trade_date
-            from vw_shfe_option_chain_latest
-            where upper(metal)=? and trade_date<=?
-            """,
-            (product, ymd),
-        ).fetchone()
+        if date_mode == "exact":
+            row = con.execute(
+                """
+                select trade_date
+                from vw_shfe_option_chain_latest
+                where upper(metal)=? and trade_date=?
+                limit 1
+                """,
+                (product, ymd),
+            ).fetchone()
+        elif date_mode == "asof":
+            row = con.execute(
+                """
+                select max(trade_date) as trade_date
+                from vw_shfe_option_chain_latest
+                where upper(metal)=? and trade_date<=?
+                """,
+                (product, ymd),
+            ).fetchone()
+        else:
+            raise ValueError("date_mode must be 'exact' or 'asof' when trade_date is provided")
     else:
         row = con.execute(
             """
@@ -115,9 +133,13 @@ def _latest_trade_date(con: sqlite3.Connection, product: str, trade_date: str | 
             """,
             (product,),
         ).fetchone()
+        ymd = None
     if not row or not row["trade_date"]:
+        if trade_date and date_mode == "exact":
+            raise ValueError(f"No exact trade_date match found for {product} trade_date={trade_date!r}")
         raise ValueError(f"No SHFE option chain rows found for {product} trade_date={trade_date!r}")
-    return row["trade_date"]
+    resolved = row["trade_date"]
+    return resolved, bool(ymd and resolved != ymd)
 
 
 def _query_options(
@@ -187,7 +209,7 @@ def _pick_underlying_symbol(rows: Iterable[sqlite3.Row], product: str) -> str:
     return max(counts.items(), key=lambda item: item[1])[0]
 
 
-def _load_underlying_price(con: sqlite3.Connection, product: str, trade_ymd: str, underlying_symbol: str) -> tuple[str, float]:
+def _load_underlying_price(con: sqlite3.Connection, product: str, trade_ymd: str, underlying_symbol: str) -> tuple[str, float, str, str]:
     candidates = []
     if underlying_symbol:
         u = underlying_symbol.upper().replace(".SHF", "")
@@ -211,22 +233,36 @@ def _load_underlying_price(con: sqlite3.Connection, product: str, trade_ymd: str
     ).fetchone()
     if not row:
         raise ValueError(f"No underlying futures row found for {product}/{underlying_symbol} on or before {trade_ymd}")
-    price = row["close"] if row["close"] is not None else row["settle"]
+    price = row["close"] if row["close"] is not None and row["close"] > 0 else row["settle"]
+    basis = "close" if row["close"] is not None and row["close"] > 0 else "settle_fallback"
     if price is None or price <= 0:
         raise ValueError(f"Invalid underlying futures price for {row['ts_code']} on {row['trade_date']}")
-    return row["ts_code"], float(price)
+    return row["ts_code"], float(price), format_iso(row["trade_date"]), basis
 
 
-def load_option_chain_snapshot(symbol: str, trade_date: str | None = None, expiry: str | None = None) -> OptionChainSnapshot:
+def load_option_chain_snapshot(
+    symbol: str,
+    trade_date: str | None = None,
+    expiry: str | None = None,
+    date_mode: str | None = None,
+) -> OptionChainSnapshot:
     """Load a normalized SHFE option chain snapshot in read-only mode."""
     product = normalize_product(symbol)
+    requested_trade_date = format_iso(trade_date)
+    resolved_mode = date_mode or ("exact" if trade_date else "latest")
+    lookup_mode = "asof" if resolved_mode == "latest" else resolved_mode
     with connect_shfe_ro() as con:
-        trade_ymd = _latest_trade_date(con, product, trade_date)
+        trade_ymd, fallback_used = _latest_trade_date(con, product, trade_date, lookup_mode)
         rows = _query_options(con, product, trade_ymd, expiry)
         if not rows:
             raise ValueError(f"No SHFE option chain rows found for {product} trade_date={trade_date!r} expiry={expiry!r}")
         underlying_hint = _pick_underlying_symbol(rows, product)
-        underlying_symbol, underlying_price = _load_underlying_price(con, product, trade_ymd, underlying_hint)
+        underlying_symbol, underlying_price, underlying_price_trade_date, underlying_price_basis = _load_underlying_price(
+            con,
+            product,
+            trade_ymd,
+            underlying_hint,
+        )
         options = [
             OptionQuote(
                 trade_date=format_iso(row["trade_date"]),
@@ -253,4 +289,9 @@ def load_option_chain_snapshot(symbol: str, trade_date: str | None = None, expir
         underlying_price=underlying_price,
         options=options,
         source="shfe_options.db:futures_daily+vw_shfe_option_chain_latest",
+        requested_trade_date=requested_trade_date,
+        trade_date_mode=resolved_mode,
+        trade_date_fallback_used=fallback_used,
+        underlying_price_trade_date=underlying_price_trade_date,
+        underlying_price_basis=underlying_price_basis,
     )

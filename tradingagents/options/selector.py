@@ -111,6 +111,7 @@ def _build_portfolio_summary(
         "tradable_candidate_count": len(tradable),
         "no_trade_count": len(no_trade_rows),
         "selected_strategy": selected,
+        "selected_risk_budget_utilization": selected.get("risk_budget_utilization") if selected else None,
         "all_candidate_margin_cash": all_margin,
         "all_candidate_max_loss_cash": all_max_loss,
         "all_candidate_margin_utilization": _risk_budget_utilization(all_margin, risk_budget_cash),
