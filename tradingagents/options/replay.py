@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Iterable
 
 from tradingagents.options.analytics import analyze_option_chain
-from tradingagents.options.data_loader import load_option_chain_snapshot
+from tradingagents.options.data_loader import format_iso, load_option_chain_snapshot
 from tradingagents.options.strategies import build_option_strategy_candidate
 
 
@@ -29,11 +29,17 @@ def _parse_date(value: str) -> datetime:
     return datetime.strptime(s[:10], "%Y-%m-%d")
 
 
-def _as_review_dates(entry_date: str, review_dates: Iterable[str] | None) -> list[str]:
-    if review_dates is None:
-        return [entry_date]
-    dates = [str(item) for item in review_dates]
-    return dates or [entry_date]
+def _as_review_dates(entry_date: str, review_dates: Iterable[str] | None) -> tuple[list[str], list[str]]:
+    raw_dates = [entry_date] if review_dates is None else [str(item) for item in review_dates]
+    if not raw_dates:
+        raw_dates = [entry_date]
+    input_dates = [format_iso(item) or str(item) for item in raw_dates]
+    entry_dt = _parse_date(entry_date)
+    for item in input_dates:
+        if _parse_date(item) < entry_dt:
+            raise ValueError(f"review_date {item!r} is before entry_date {format_iso(entry_date)!r}")
+    resolved_dates = sorted(input_dates, key=_parse_date)
+    return input_dates, resolved_dates
 
 
 def _signed_multiplier(leg: dict[str, Any]) -> int:
@@ -254,7 +260,7 @@ def build_option_strategy_replay(
         risk_budget_cash=risk_budget_cash,
     )
     contract_multiplier = int(entry_strategy.get("contract_multiplier") or 1)
-    dates = _as_review_dates(entry_date, review_dates)
+    input_review_dates, dates = _as_review_dates(entry_date, review_dates)
     marks = [_mark_strategy(entry_strategy=entry_strategy, review_date=date, expiry=expiry) for date in dates]
     performance_summary = _performance_summary(marks)
     return {
@@ -271,6 +277,8 @@ def build_option_strategy_replay(
             "risk_budget": entry_strategy.get("risk_budget"),
             "legs": entry_strategy["legs"],
         },
+        "input_review_dates": input_review_dates,
+        "resolved_review_dates": dates,
         "marks": marks,
         "summary": _summary(marks),
         "performance_summary": performance_summary,
@@ -280,6 +288,9 @@ def build_option_strategy_replay(
             "same_legs_marked_by_ts_code": True,
             "post_trade_review": True,
             "performance_distribution_included": True,
+            "review_date_ordering": "chronological",
+            "input_review_dates": input_review_dates,
+            "resolved_review_dates": dates,
             "iv_regime_grouping": "close_based_atm_iv_diagnostic",
             "fees_and_slippage_after_entry_modeled": False,
             "date_order_days": [(_parse_date(date) - _parse_date(entry_date)).days for date in dates],

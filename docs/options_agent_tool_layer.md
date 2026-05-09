@@ -152,10 +152,13 @@ tradingagents/options/replay.py
 marks the same entry legs by `ts_code` across review dates using option close +
 futures close. It reports per-leg marks, strategy mark value, PnL in option
 points and cash, PnL as a percentage of margin required, and a simple
-post-trade review outcome (`profitable`, `loss_making`, or `flat`). Phase 18B
-adds `performance_summary`: win/lose/flat counts, win rate, average/final PnL
-cash, max drawdown cash, a date-by-date `pnl_path`, and IV-regime buckets based
-on close-derived ATM IV diagnostics for each mark date.
+post-trade review outcome (`profitable`, `loss_making`, or `flat`). Phase 20D
+sorts review dates chronologically by default, rejects any review date before the
+entry date, and exposes both `input_review_dates` and `resolved_review_dates` so
+final PnL and max drawdown are auditable rather than input-order-dependent.
+Phase 18B adds `performance_summary`: win/lose/flat counts, win rate,
+average/final PnL cash, max drawdown cash, a date-by-date `pnl_path`, and
+IV-regime buckets based on close-derived ATM IV diagnostics for each mark date.
 
 `get_option_strategy_replay` exposes this as JSON to market/risk/portfolio
 agents for historical replay, backtest-style sanity checks, and post-trade
@@ -303,6 +306,7 @@ the original graph:
 - Phase 20A cleanup tightens audit contracts: explicit `trade_date` now defaults to exact option-chain matching unless `date_mode="asof"` is requested, snapshots expose requested/resolved/fallback date metadata and option/underlying price-basis details, and research-pack summaries expose selected-strategy risk-budget utilization from the portfolio summary.
 - Phase 20B cleanup replaces the old 3%/97%-103% moneyness skew proxy with true nearest-expiry 25-delta skew: `skew_25d` is 25Δ put IV minus 25Δ call IV using Black-76 delta interpolation when bracketed, while moneyness bucket risk-reversal remains exposed separately as a legacy diagnostic proxy.
 - Phase 20C cleanup tightens bid/ask validity: crossed/nonpositive quotes are preserved as raw bid/ask but excluded from execution pricing, credit is marked `indicative` rather than executable unless every leg has valid bid/ask, and reports expose `credit_quote_status` plus indicative credit fields.
+- Phase 20D cleanup makes replay chronology explicit: review dates are sorted ascending before marking, review dates before entry are rejected, and replay payloads expose input vs resolved review-date sequences to make final PnL and drawdown auditable.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -317,7 +321,7 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Volatility-surface model: `vol_surface` buckets are computed from available option close-based IV rows by expiry/moneyness; `skew_25d` is true nearest-expiry 25Δ put IV minus 25Δ call IV from Black-76 delta interpolation when the target delta is bracketed, with nearest-delta fallback metadata when the listed chain is too narrow. Risk-reversal and smile-curvature proxies are separate moneyness-bucket diagnostics, not executable volatility quotes.
 - Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures and, for `short_iron_condor`, execution-adjusted max loss based on executable credit only when all legs have valid bid/ask; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
 - Credit execution model: supported credit structures use valid bid/ask feasibility (`SELL` at bid, `BUY` at ask, requiring `ask >= bid`) to report executable credit, credit slippage, credit/wing-width ratio, and optional no-trade filters. Missing/crossed/nonpositive quotes are not treated as executable; raw quotes are retained for audit and credit is marked indicative. This is still a pre-trade proxy, not a guaranteed live fill.
-- Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled. Phase 18B performance summaries group replay marks by close-derived ATM-IV regime for diagnostics only, not executable volatility quotes.
+- Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; review dates are sorted chronologically and pre-entry review dates are rejected so final PnL/drawdown are not input-order artifacts. Post-entry fees/slippage and order-book execution are not modeled. Phase 18B performance summaries group replay marks by close-derived ATM-IV regime for diagnostics only, not executable volatility quotes.
 - Report/delivery model: reports are Markdown + audit payloads; Feishu payloads are side-effect-free handoffs and require an external sender to publish. Research packs are also side-effect-free orchestration outputs; their embedded Feishu payload is dry-run by default and should not be interpreted as a sent message. `scripts/build_option_research_pack.py` writes local research-pack artifacts only; `--stdout markdown` is a handoff stream, not delivery proof, and `--stdout hermes-cron-spec` only prints a no-agent cron spec. Phase 14A live sends require an injected sender callable, while scheduled Hermes delivery should use no-agent cron with either `scripts/deliver_option_strategy_report.py --stdout message` for single reports or `scripts/build_option_research_pack.py --stdout markdown` for research packs.
 
 ## Verification
