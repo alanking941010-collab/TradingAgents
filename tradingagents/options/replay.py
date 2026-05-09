@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Iterable
 
+from tradingagents.options.analytics import analyze_option_chain
 from tradingagents.options.data_loader import load_option_chain_snapshot
 from tradingagents.options.strategies import build_option_strategy_candidate
 
@@ -84,6 +85,7 @@ def _mark_strategy(
     pnl = mark_value - entry_value
     pnl_cash = _cash(pnl, contract_multiplier)
     margin_required_cash = entry_strategy.get("margin", {}).get("margin_required_cash")
+    iv_context = _mark_iv_context(entry_strategy["product"], snapshot.trade_date, expiry)
     return {
         "trade_date": snapshot.trade_date,
         "underlying_symbol": snapshot.underlying_symbol,
@@ -96,7 +98,40 @@ def _mark_strategy(
         "pnl_cash": pnl_cash,
         "pnl_pct_of_entry_value": _round(pnl / abs(entry_value), 8) if entry_value else None,
         "pnl_pct_of_margin": _round(pnl_cash / margin_required_cash, 8) if pnl_cash is not None and margin_required_cash else None,
+        "iv_context": iv_context,
         "leg_marks": leg_marks,
+    }
+
+
+def _iv_regime(atm_iv: float | None) -> str:
+    if atm_iv is None:
+        return "unknown"
+    if atm_iv < 0.20:
+        return "low_iv"
+    if atm_iv < 0.35:
+        return "moderate_iv"
+    return "high_iv"
+
+
+def _mark_iv_context(product: str, trade_date: str, expiry: str | None) -> dict[str, Any]:
+    try:
+        report = analyze_option_chain(product, trade_date=trade_date, expiry=expiry)
+    except Exception as exc:
+        return {
+            "atm_iv": None,
+            "iv_regime": "unknown",
+            "term_shape": None,
+            "risk_reversal_proxy": None,
+            "smile_curvature_proxy": None,
+            "error": str(exc),
+        }
+    surface = report.vol_surface or {}
+    return {
+        "atm_iv": _round(report.atm_iv),
+        "iv_regime": _iv_regime(report.atm_iv),
+        "term_shape": (surface.get("term_regime") or {}).get("shape"),
+        "risk_reversal_proxy": _round((surface.get("skew") or {}).get("risk_reversal_proxy")),
+        "smile_curvature_proxy": _round((surface.get("skew") or {}).get("smile_curvature_proxy")),
     }
 
 
@@ -136,6 +171,67 @@ def _summary(marks: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _performance_summary(marks: list[dict[str, Any]]) -> dict[str, Any]:
+    pnl_values = [float(mark.get("pnl_cash") or 0.0) for mark in marks]
+    positive = [value for value in pnl_values if value > 0]
+    negative = [value for value in pnl_values if value < 0]
+    flat = [value for value in pnl_values if value == 0]
+    running_peak = pnl_values[0] if pnl_values else 0.0
+    max_drawdown = 0.0
+    pnl_path: list[dict[str, Any]] = []
+    regime_buckets: dict[str, dict[str, Any]] = {}
+
+    for mark, pnl_cash in zip(marks, pnl_values):
+        running_peak = max(running_peak, pnl_cash)
+        max_drawdown = max(max_drawdown, running_peak - pnl_cash)
+        iv_context = mark.get("iv_context") or {}
+        regime = iv_context.get("iv_regime") or "unknown"
+        row = {
+            "trade_date": mark.get("trade_date"),
+            "underlying_price": mark.get("underlying_price"),
+            "pnl_cash": mark.get("pnl_cash"),
+            "pnl_pct_of_margin": mark.get("pnl_pct_of_margin"),
+            "atm_iv": iv_context.get("atm_iv"),
+            "iv_regime": regime,
+            "term_shape": iv_context.get("term_shape"),
+        }
+        pnl_path.append(row)
+        bucket = regime_buckets.setdefault(
+            regime,
+            {"count": 0, "average_pnl_cash": 0.0, "best_pnl_cash": None, "worst_pnl_cash": None},
+        )
+        bucket["count"] += 1
+        bucket["average_pnl_cash"] += pnl_cash
+        bucket["best_pnl_cash"] = pnl_cash if bucket["best_pnl_cash"] is None else max(float(bucket["best_pnl_cash"]), pnl_cash)
+        bucket["worst_pnl_cash"] = pnl_cash if bucket["worst_pnl_cash"] is None else min(float(bucket["worst_pnl_cash"]), pnl_cash)
+
+    for bucket in regime_buckets.values():
+        if bucket["count"]:
+            bucket["average_pnl_cash"] = _round(float(bucket["average_pnl_cash"]) / int(bucket["count"]), 4)
+        bucket["best_pnl_cash"] = _round(bucket["best_pnl_cash"], 4)
+        bucket["worst_pnl_cash"] = _round(bucket["worst_pnl_cash"], 4)
+
+    count = len(pnl_values)
+    return {
+        "summary_type": "option_replay_performance_distribution",
+        "review_count": count,
+        "winning_mark_count": len(positive),
+        "losing_mark_count": len(negative),
+        "flat_mark_count": len(flat),
+        "win_rate": _round(len(positive) / count, 8) if count else None,
+        "average_pnl_cash": _round(sum(pnl_values) / count, 4) if count else None,
+        "median_pnl_cash": _round(sorted(pnl_values)[count // 2], 4) if count else None,
+        "final_pnl_cash": _round(pnl_values[-1], 4) if pnl_values else None,
+        "max_drawdown_cash": _round(max_drawdown, 4),
+        "pnl_path": pnl_path,
+        "iv_regime_breakdown": regime_buckets,
+        "notes": [
+            "Performance distribution is based on deterministic mark-to-market replay of the same entry legs by ts_code.",
+            "IV regime buckets are diagnostics from close-based implied volatility snapshots, not executable volatility quotes.",
+        ],
+    }
+
+
 def build_option_strategy_replay(
     symbol: str,
     strategy_type: str,
@@ -160,6 +256,7 @@ def build_option_strategy_replay(
     contract_multiplier = int(entry_strategy.get("contract_multiplier") or 1)
     dates = _as_review_dates(entry_date, review_dates)
     marks = [_mark_strategy(entry_strategy=entry_strategy, review_date=date, expiry=expiry) for date in dates]
+    performance_summary = _performance_summary(marks)
     return {
         "strategy_type": entry_strategy["strategy_type"],
         "product": entry_strategy["product"],
@@ -176,11 +273,14 @@ def build_option_strategy_replay(
         },
         "marks": marks,
         "summary": _summary(marks),
+        "performance_summary": performance_summary,
         "assumptions": {
             "replay_price_basis": "option close + futures close",
             "entry_selection": "deterministic strategy structurer on entry_date",
             "same_legs_marked_by_ts_code": True,
             "post_trade_review": True,
+            "performance_distribution_included": True,
+            "iv_regime_grouping": "close_based_atm_iv_diagnostic",
             "fees_and_slippage_after_entry_modeled": False,
             "date_order_days": [(_parse_date(date) - _parse_date(entry_date)).days for date in dates],
         },

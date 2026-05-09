@@ -116,6 +116,7 @@ def _render_markdown(
 
     if replay is not None:
         replay_summary = replay.get("summary", {})
+        replay_performance = replay.get("performance_summary", {})
         post_trade = replay_summary.get("post_trade_review", {})
         lines.extend([
             "",
@@ -125,6 +126,13 @@ def _render_markdown(
             f"- Final PnL: {_fmt_points(replay_summary.get('final_pnl'))} / {_fmt_cash(replay_summary.get('final_pnl_cash'))}",
             f"- Best/Worst cash PnL: {_fmt_cash(replay_summary.get('best_pnl_cash'))} / {_fmt_cash(replay_summary.get('worst_pnl_cash'))}",
             f"- Post-trade outcome: `{post_trade.get('outcome')}` — {post_trade.get('diagnosis')}",
+            "",
+            "### Replay Performance Distribution",
+            f"- Win/lose/flat marks: {replay_performance.get('winning_mark_count')} / {replay_performance.get('losing_mark_count')} / {replay_performance.get('flat_mark_count')}",
+            f"- Win rate: {_fmt_pct(replay_performance.get('win_rate'))}",
+            f"- Average PnL cash: {_fmt_cash(replay_performance.get('average_pnl_cash'))}",
+            f"- Max drawdown cash: {_fmt_cash(replay_performance.get('max_drawdown_cash'))}",
+            f"- IV regime buckets: {sorted((replay_performance.get('iv_regime_breakdown') or {}).keys())}",
         ])
 
     lines.extend([
@@ -219,12 +227,15 @@ def build_option_strategy_report(
             "credit_pct_of_wing_width": strategy.get("credit_execution", {}).get("executable_credit_pct_of_wing_width") if strategy.get("credit_execution") else None,
             "worst_scenario_pnl_cash": scenarios.get("summary", {}).get("worst_pnl_cash"),
             "replay_final_pnl_cash": replay.get("summary", {}).get("final_pnl_cash") if replay else None,
+            "replay_max_drawdown_cash": replay.get("performance_summary", {}).get("max_drawdown_cash") if replay else None,
+            "replay_win_rate": replay.get("performance_summary", {}).get("win_rate") if replay else None,
         },
         "payloads": {
             "volatility_snapshot": analytics,
             "strategy": strategy,
             "scenario_summary": scenarios.get("summary"),
             "replay_summary": replay.get("summary") if replay else None,
+            "replay_performance_summary": replay.get("performance_summary") if replay else None,
         },
         "markdown": markdown,
         "assumptions": {

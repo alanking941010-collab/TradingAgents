@@ -150,7 +150,10 @@ tradingagents/options/replay.py
 marks the same entry legs by `ts_code` across review dates using option close +
 futures close. It reports per-leg marks, strategy mark value, PnL in option
 points and cash, PnL as a percentage of margin required, and a simple
-post-trade review outcome (`profitable`, `loss_making`, or `flat`).
+post-trade review outcome (`profitable`, `loss_making`, or `flat`). Phase 18B
+adds `performance_summary`: win/lose/flat counts, win rate, average/final PnL
+cash, max drawdown cash, a date-by-date `pnl_path`, and IV-regime buckets based
+on close-derived ATM IV diagnostics for each mark date.
 
 `get_option_strategy_replay` exposes this as JSON to market/risk/portfolio
 agents for historical replay, backtest-style sanity checks, and post-trade
@@ -221,6 +224,7 @@ the original graph:
 - Phase 16 adds volatility-surface diagnostics: moneyness IV buckets, risk-reversal/smile-curvature proxies, term-regime shape, and report/tool/prompt exposure so agents can tie structures to skew and term structure instead of only ATM IV.
 - Phase 17 adds a deterministic strategy selector/ranking layer that maps volatility-surface regime, directional/volatility view, execution quality, simplified margin, risk-budget pass/fail, and credit filters into ranked candidate/watch/no-trade structures.
 - Phase 18A adds portfolio-level candidate comparison and risk summary inside the selector output: selected-strategy risk-budget utilization, all-tradable candidate margin/max-loss totals, highest-margin/lowest-max-loss structures, watchlist/no-trade rows, and a Markdown `Portfolio Risk Summary` table.
+- Phase 18B enhances replay/backtest output with `performance_summary`: win/lose/flat distribution, win rate, average/final PnL cash, max drawdown cash, per-date PnL path, close-based IV-regime buckets, and report payload/Markdown exposure.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -235,7 +239,7 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Volatility-surface model: `vol_surface` buckets are computed from available option close-based IV rows by expiry/moneyness; risk-reversal and smile-curvature proxies are diagnostics, not executable volatility quotes.
 - Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures and, for `short_iron_condor`, execution-adjusted max loss based on executable credit when bid/ask are available; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
 - Credit execution model: supported credit structures use bid/ask feasibility (`SELL` at bid, `BUY` at ask) to report executable credit, credit slippage, credit/wing-width ratio, and optional no-trade filters. This is still an indicative pre-trade proxy, not a guaranteed live fill.
-- Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled.
+- Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled. Phase 18B performance summaries group replay marks by close-derived ATM-IV regime for diagnostics only, not executable volatility quotes.
 - Report/delivery model: reports are Markdown + audit payloads; Feishu payloads are side-effect-free handoffs and require an external sender to publish. Phase 14A live sends require an injected sender callable, while scheduled Hermes delivery should use no-agent cron with `scripts/deliver_option_strategy_report.py --stdout message`.
 
 ## Verification
