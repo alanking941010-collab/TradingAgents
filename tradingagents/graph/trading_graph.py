@@ -43,6 +43,7 @@ from tradingagents.agents.utils.options_tools import (
     get_option_analytics_report,
     get_option_feishu_delivery_payload,
     get_option_hermes_cron_delivery_spec,
+    get_option_research_pack,
     get_option_strategy_candidate,
     get_option_strategy_replay,
     get_option_strategy_report,
@@ -182,6 +183,7 @@ class TradingAgentsGraph:
                     get_option_strategy_replay,
                     get_option_strategy_report,
                     get_option_strategy_selection,
+                    get_option_research_pack,
                     get_option_feishu_delivery_payload,
                     get_option_hermes_cron_delivery_spec,
                 ]

@@ -51,6 +51,7 @@ LangChain tools:
 - `get_option_strategy_scenarios`
 - `get_option_strategy_replay`
 - `get_option_strategy_report`
+- `get_option_research_pack`
 - `get_option_feishu_delivery_payload`
 - `get_option_hermes_cron_delivery_spec`
 
@@ -182,6 +183,34 @@ message payload (`channel`, `target`, `title`, `message`, `dry_run`, and
 these functions as tools for agents that need report generation or delivery
 handoff.
 
+## Unified Research Pack
+
+Phase 19A adds a side-effect-free research pack orchestrator in:
+
+```text
+tradingagents/options/research_pack.py
+```
+
+`build_option_research_pack` stitches together the deterministic selector, Phase
+18A `portfolio_summary`, selected strategy report, optional Phase 18B replay
+performance summary, and a dry-run Feishu delivery payload. If `strategy_type` is
+omitted it uses selector auto-pick; if supplied it keeps the full selector output
+but marks `selection_mode="explicit_strategy_override"` for audit.
+
+The pack returns:
+
+- `pack_type="shfe_option_research_pack"`, product, trade date, expiry, selected strategy, and selection mode.
+- `summary`: selected decision/score, risk budget cash/status/utilization, execution liquidity grade, worst scenario PnL cash, replay final PnL, replay max drawdown, replay win rate, and report title.
+- `payloads.selection`: full selector/ranking JSON.
+- `payloads.portfolio_summary`: Phase 18A candidate comparison for portfolio-manager review.
+- `payloads.selected_strategy_report`: the complete Markdown-first strategy report, including scenario and optional replay sections.
+- `payloads.feishu_delivery_payload`: dry-run Feishu Markdown payload; no message is sent by this code path.
+- `markdown`: a single `Options Research Pack` handoff combining strategy selection and selected strategy report.
+
+`get_option_research_pack` exposes the pack as an agent tool so market analysts
+can request one auditable research bundle instead of separately calling selector,
+report, replay, and Feishu-payload tools.
+
 Phase 14A adds an explicit send boundary and Hermes cron-ready entrypoint:
 
 ```text
@@ -205,7 +234,7 @@ and Feishu payload JSON artifacts for audit.
 Phase 2B wires the tool layer into the existing analyst nodes without replacing
 the original graph:
 
-- `market_analyst` keeps `get_stock_data` and `get_indicators`, and adds `get_option_trade_context`, `get_option_analytics_report`, `get_option_analytics_json`, `get_option_strategy_candidate`, `get_option_strategy_selection`, `get_option_strategy_scenarios`, `get_option_strategy_replay`, `get_option_strategy_report`, `get_option_feishu_delivery_payload`, and `get_option_hermes_cron_delivery_spec` for supported SHFE metals option symbols.
+- `market_analyst` keeps `get_stock_data` and `get_indicators`, and adds `get_option_trade_context`, `get_option_analytics_report`, `get_option_analytics_json`, `get_option_strategy_candidate`, `get_option_strategy_selection`, `get_option_strategy_scenarios`, `get_option_strategy_replay`, `get_option_strategy_report`, `get_option_research_pack`, `get_option_feishu_delivery_payload`, and `get_option_hermes_cron_delivery_spec` for supported SHFE metals option symbols.
 - `fundamentals_analyst` keeps the commodity/fundamental tools and adds `get_option_trade_context` so inventories, macro anchors, and term structure can be interpreted as volatility-regime drivers.
 - `news_analyst` keeps local/global news tools and adds `get_option_trade_context` so events are framed as IV, skew, and tail-demand repricing risks.
 - `bull_researcher` and `bear_researcher` keep the native debate loop but, in options mode, must discuss whether implied volatility is more likely to rise or fall over 5-day, 20-day, and 40-day horizons.
@@ -225,6 +254,7 @@ the original graph:
 - Phase 17 adds a deterministic strategy selector/ranking layer that maps volatility-surface regime, directional/volatility view, execution quality, simplified margin, risk-budget pass/fail, and credit filters into ranked candidate/watch/no-trade structures.
 - Phase 18A adds portfolio-level candidate comparison and risk summary inside the selector output: selected-strategy risk-budget utilization, all-tradable candidate margin/max-loss totals, highest-margin/lowest-max-loss structures, watchlist/no-trade rows, and a Markdown `Portfolio Risk Summary` table.
 - Phase 18B enhances replay/backtest output with `performance_summary`: win/lose/flat distribution, win rate, average/final PnL cash, max drawdown cash, per-date PnL path, close-based IV-regime buckets, and report payload/Markdown exposure.
+- Phase 19A adds a unified side-effect-free research pack: selector auto-pick or explicit strategy override, Phase 18A portfolio summary, selected strategy report, optional Phase 18B replay performance, dry-run Feishu payload, and one Markdown handoff.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -240,12 +270,13 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 - Margin model: simplified defined-risk. Margin required equals execution-adjusted max loss for supported debit structures and, for `short_iron_condor`, execution-adjusted max loss based on executable credit when bid/ask are available; exchange/SPAN margin, fees, broker add-ons, and margin offsets are not modeled.
 - Credit execution model: supported credit structures use bid/ask feasibility (`SELL` at bid, `BUY` at ask) to report executable credit, credit slippage, credit/wing-width ratio, and optional no-trade filters. This is still an indicative pre-trade proxy, not a guaranteed live fill.
 - Replay model: mark the same entry legs by option `ts_code` with option close + futures close on each review date; post-entry fees/slippage and order-book execution are not modeled. Phase 18B performance summaries group replay marks by close-derived ATM-IV regime for diagnostics only, not executable volatility quotes.
-- Report/delivery model: reports are Markdown + audit payloads; Feishu payloads are side-effect-free handoffs and require an external sender to publish. Phase 14A live sends require an injected sender callable, while scheduled Hermes delivery should use no-agent cron with `scripts/deliver_option_strategy_report.py --stdout message`.
+- Report/delivery model: reports are Markdown + audit payloads; Feishu payloads are side-effect-free handoffs and require an external sender to publish. Research packs are also side-effect-free orchestration outputs; their embedded Feishu payload is dry-run by default and should not be interpreted as a sent message. Phase 14A live sends require an injected sender callable, while scheduled Hermes delivery should use no-agent cron with `scripts/deliver_option_strategy_report.py --stdout message`.
 
 ## Verification
 
 ```bash
 cd /mnt/e/cautious_twinkle/projects/TradingAgents
+.venv/bin/python -m pytest tests/test_options_phase19a_research_pack.py tests/test_options_analyst_integration.py -q
 .venv/bin/python -m pytest tests/test_options_tools.py -q
 .venv/bin/python -m pytest -q
 ```
