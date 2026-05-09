@@ -103,8 +103,9 @@ selector returns:
 
 - `surface_regime`: nearest expiry, term shape/slope, put-call skew, risk-reversal proxy, smile-curvature proxy, and ATM IV.
 - `ranked_candidates`: strategy type, score, decision (`candidate`, `watch`, `low_priority`, or `no_trade`), ranking reasons, no-trade reasons, margin/max-loss cash, execution liquidity grade, and the full underlying candidate.
+- `portfolio_summary`: Phase 18A portfolio-level comparison table with selected strategy risk-budget utilization, total tradable-candidate margin/max-loss, highest-margin and lowest-max-loss structures, watchlist, and explicit no-trade rows.
 - `selected_strategy`: the highest-ranked non-`no_trade` structure.
-- `markdown`: a human-readable `Strategy Ranking` section for reports or Feishu handoff.
+- `markdown`: a human-readable `Strategy Ranking` and `Portfolio Risk Summary` section for reports or Feishu handoff.
 
 This is a deterministic pre-trade research layer. It does not execute orders and
 should not override explicit risk-manager/portfolio-manager rejection when live
@@ -219,6 +220,7 @@ the original graph:
 - Phase 15 improves credit strategy execution realism: `short_iron_condor` now reports executable credit from bid/ask, credit slippage, execution-adjusted max loss/margin, credit/wing-width and credit/max-loss ratios, and optional no-trade filters (`min_credit_pct_of_wing_width`, `max_bid_ask_spread_pct`).
 - Phase 16 adds volatility-surface diagnostics: moneyness IV buckets, risk-reversal/smile-curvature proxies, term-regime shape, and report/tool/prompt exposure so agents can tie structures to skew and term structure instead of only ATM IV.
 - Phase 17 adds a deterministic strategy selector/ranking layer that maps volatility-surface regime, directional/volatility view, execution quality, simplified margin, risk-budget pass/fail, and credit filters into ranked candidate/watch/no-trade structures.
+- Phase 18A adds portfolio-level candidate comparison and risk summary inside the selector output: selected-strategy risk-budget utilization, all-tradable candidate margin/max-loss totals, highest-margin/lowest-max-loss structures, watchlist/no-trade rows, and a Markdown `Portfolio Risk Summary` table.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 

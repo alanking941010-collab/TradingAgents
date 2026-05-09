@@ -51,6 +51,84 @@ def _surface_regime(report) -> dict[str, Any]:
     }
 
 
+def _cash_number(value: Any) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _risk_budget_utilization(amount: float | None, risk_budget_cash: float | None) -> float | None:
+    if amount is None or risk_budget_cash in (None, 0):
+        return None
+    return _round(amount / float(risk_budget_cash), 6)
+
+
+def _portfolio_row(row: dict[str, Any], rank: int, risk_budget_cash: float | None) -> dict[str, Any]:
+    margin_cash = _cash_number(row.get("margin_required_cash"))
+    max_loss_cash = _cash_number(row.get("max_loss_cash"))
+    risk_basis = max(value for value in (margin_cash, max_loss_cash) if value is not None) if any(
+        value is not None for value in (margin_cash, max_loss_cash)
+    ) else None
+    credit = row.get("credit_execution") or {}
+    return {
+        "rank": rank,
+        "strategy_type": row.get("strategy_type"),
+        "decision": row.get("decision"),
+        "score": row.get("score"),
+        "margin_required_cash": margin_cash,
+        "max_loss_cash": max_loss_cash,
+        "risk_budget_utilization": _risk_budget_utilization(risk_basis, risk_budget_cash),
+        "execution_liquidity_grade": row.get("execution_liquidity_grade"),
+        "risk_budget_status": row.get("risk_budget_status"),
+        "executable_credit_cash": _cash_number(credit.get("executable_credit_cash")),
+        "credit_pct_of_wing_width": credit.get("executable_credit_pct_of_wing_width"),
+    }
+
+
+def _build_portfolio_summary(
+    ranked: list[dict[str, Any]],
+    selected_strategy: str | None,
+    risk_budget_cash: float | None,
+) -> dict[str, Any]:
+    comparison = [_portfolio_row(row, idx, risk_budget_cash) for idx, row in enumerate(ranked, start=1)]
+    tradable = [row for row in comparison if row.get("decision") != "no_trade"]
+    allocation_rows = tradable or comparison
+
+    def _sum(field: str) -> float:
+        return _round(sum(float(row[field]) for row in allocation_rows if isinstance(row.get(field), (int, float))), 4) or 0.0
+
+    selected = next((row for row in comparison if row.get("strategy_type") == selected_strategy), None)
+    margin_rows = [row for row in comparison if isinstance(row.get("margin_required_cash"), (int, float))]
+    max_loss_rows = [row for row in comparison if isinstance(row.get("max_loss_cash"), (int, float))]
+    no_trade_rows = [row for row in comparison if row.get("decision") == "no_trade"]
+
+    all_margin = _sum("margin_required_cash")
+    all_max_loss = _sum("max_loss_cash")
+    summary = {
+        "summary_type": "option_strategy_portfolio_risk_summary",
+        "risk_budget_cash": risk_budget_cash,
+        "candidate_count": len(comparison),
+        "tradable_candidate_count": len(tradable),
+        "no_trade_count": len(no_trade_rows),
+        "selected_strategy": selected,
+        "all_candidate_margin_cash": all_margin,
+        "all_candidate_max_loss_cash": all_max_loss,
+        "all_candidate_margin_utilization": _risk_budget_utilization(all_margin, risk_budget_cash),
+        "all_candidate_max_loss_utilization": _risk_budget_utilization(all_max_loss, risk_budget_cash),
+        "highest_margin_strategy": max(margin_rows, key=lambda row: float(row["margin_required_cash"])) if margin_rows else None,
+        "lowest_max_loss_strategy": min(max_loss_rows, key=lambda row: float(row["max_loss_cash"])) if max_loss_rows else None,
+        "watchlist": [row for row in comparison if row.get("decision") == "watch"],
+        "no_trade_strategies": [row for row in comparison if row.get("decision") == "no_trade"],
+        "comparison_table": comparison,
+        "notes": [
+            "Portfolio summary compares strategy candidates side by side; it is not a recommendation to allocate to every row.",
+            "Risk-budget utilization uses the larger of margin_required_cash and max_loss_cash when both are available.",
+            "All-candidate totals sum tradable rows only; no-trade rows remain visible in comparison_table but are excluded from totals.",
+        ],
+    }
+    return summary
+
+
 def _score_candidate(
     candidate: dict[str, Any],
     surface_regime: dict[str, Any],
@@ -207,8 +285,30 @@ def _render_markdown(selection: dict[str, Any]) -> str:
             lines.append(f"   - no-trade: {reason}")
     lines.extend([
         "",
+        "## Portfolio Risk Summary",
+    ])
+    portfolio = selection.get("portfolio_summary") or {}
+    selected = portfolio.get("selected_strategy") or {}
+    lines.extend([
+        f"- Risk budget: {portfolio.get('risk_budget_cash')}",
+        f"- Candidate count: {portfolio.get('candidate_count')} total / {portfolio.get('tradable_candidate_count')} tradable / {portfolio.get('no_trade_count')} no-trade",
+        f"- Selected strategy: `{selected.get('strategy_type')}`; risk-budget utilization={selected.get('risk_budget_utilization')}",
+        f"- Total candidate margin: {portfolio.get('all_candidate_margin_cash')}; utilization={portfolio.get('all_candidate_margin_utilization')}",
+        f"- Total candidate max loss: {portfolio.get('all_candidate_max_loss_cash')}; utilization={portfolio.get('all_candidate_max_loss_utilization')}",
+        "",
+        "| Rank | Strategy | Decision | Score | Margin cash | Max loss cash | Risk budget use | Liquidity |",
+        "|---:|---|---|---:|---:|---:|---:|---|",
+    ])
+    for row in portfolio.get("comparison_table", [])[:8]:
+        lines.append(
+            f"| {row.get('rank')} | `{row.get('strategy_type')}` | `{row.get('decision')}` | {row.get('score')} | "
+            f"{row.get('margin_required_cash')} | {row.get('max_loss_cash')} | {row.get('risk_budget_utilization')} | `{row.get('execution_liquidity_grade')}` |"
+        )
+    lines.extend([
+        "",
         "## Assumptions",
         "- Ranking is deterministic and pre-trade only; it is not an execution instruction.",
+        "- Portfolio summary compares candidates side by side; it is not a recommendation to allocate to every listed strategy.",
         "- Uses option close + futures close analytics, bid/ask execution proxies when available, simplified defined-risk margin, and risk-budget checks.",
     ])
     return "\n".join(lines) + "\n"
@@ -251,6 +351,7 @@ def build_option_strategy_selection(
 
     ranked.sort(key=lambda row: (-float(row["score"]), row["strategy_type"]))
     selected = next((row["strategy_type"] for row in ranked if row["decision"] != "no_trade"), ranked[0]["strategy_type"] if ranked else None)
+    portfolio_summary = _build_portfolio_summary(ranked, selected, risk_budget_cash)
     selection = {
         "selection_type": "option_strategy_ranking",
         "product": report.product,
@@ -265,6 +366,7 @@ def build_option_strategy_selection(
         "surface_regime": regime,
         "selected_strategy": selected,
         "ranked_candidates": ranked,
+        "portfolio_summary": portfolio_summary,
         "errors": errors,
         "assumptions": {
             "selector_model": "deterministic_rules_v1",

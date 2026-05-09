@@ -88,7 +88,7 @@ def options_analyst_instruction(symbol: str | None, analyst_role: str) -> str:
         "Keep the analysis volatility-first: focus on IV level, volatility surface, term structure, skew, PCR, walls, gamma flip, and Greeks/risk scenarios. "
         "Do not recalculate IV/Greeks/GEX/DEX in the LLM; treat the tool JSON as the source of truth. "
         "Default price basis is option close + futures close, with r = 1.5%; use settlement only for explicit settlement/risk-control requests. "
-        "Use get_option_strategy_report when a Markdown-ready report is needed, and get_option_strategy_selection when ranking candidate strategies by volatility surface, execution, margin, and risk budget. "
+        "Use get_option_strategy_report when a Markdown-ready report is needed, and get_option_strategy_selection when ranking candidate strategies by volatility surface, execution, margin, risk budget, and portfolio-level candidate comparison. "
         "Use get_option_feishu_delivery_payload only to build a side-effect-free Feishu payload for an external sender. "
         "Use get_option_hermes_cron_delivery_spec when preparing a Hermes no-agent cron job that delivers report stdout to Feishu. "
         "GEX/DEX are exchange-OI scenario/concentration metrics because dealer position is unknown. "
@@ -176,6 +176,7 @@ def options_portfolio_instruction(symbol: str | None) -> str:
     return (
         f"\n\nSHFE options portfolio mode is active for {product}. The final decision must include a Scenario PnL Assessment, an Options Risk Assessment, and No-Trade Conditions. "
         "Before approving any trade, check the scenario PnL matrix: worst scenario, best scenario, T+5 and T+20 time-decay cases, IV up/down sensitivity, max loss consistency, and breakeven proximity. "
+        "When get_option_strategy_selection is available, use its portfolio_summary to compare the selected strategy against alternative candidates: selected risk-budget utilization, total tradable-candidate margin/max-loss, highest-margin structure, lowest-max-loss structure, watchlist, and no-trade rows. "
         "Verify contract multiplier conversion from option-price points into cash: net premium cash, max loss cash, scenario PnL cash, underlying notional, executable credit and execution-adjusted max loss for credit structures, margin required, risk budget pass/fail, and risk budget utilization. "
         "Then check Greeks, delta/gamma/theta/vega exposure, liquidity, bid/ask, slippage, execution liquidity score, executable credit/wing-width ratio where applicable, expiry risk, margin, max loss, and risk budget. "
         "Tie the position size to maximum premium at risk or defined max loss; avoid naked short gamma unless explicitly justified by liquidity, margin, and stress scenarios. "
