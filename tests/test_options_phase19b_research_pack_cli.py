@@ -62,7 +62,7 @@ def test_research_pack_cli_writes_json_markdown_payload_and_summary(tmp_path, sh
     assert pack["pack_type"] == "shfe_option_research_pack"
     assert pack["payloads"]["feishu_delivery_payload"]["dry_run"] is True
     assert payload["dry_run"] is True
-    assert "Options Research Pack" in markdown_path.read_text(encoding="utf-8")
+    assert "期权研究包" in markdown_path.read_text(encoding="utf-8")
 
 
 def test_research_pack_cli_can_print_markdown_for_explicit_replay_pack(tmp_path, shfe_options_db):
@@ -101,9 +101,9 @@ def test_research_pack_cli_can_print_markdown_for_explicit_replay_pack(tmp_path,
         timeout=30,
     )
 
-    assert result.stdout.startswith("# Options Research Pack")
+    assert result.stdout.startswith("# 期权研究包")
     assert "bull_call_spread" in result.stdout
-    assert "Replay Performance Distribution" in result.stdout
+    assert "回放绩效分布" in result.stdout
     pack_path = outdir / "CU_2026-05-01_bull_call_spread_research_pack.json"
     pack = json.loads(pack_path.read_text(encoding="utf-8"))
     assert pack["selection_mode"] == "explicit_strategy_override"

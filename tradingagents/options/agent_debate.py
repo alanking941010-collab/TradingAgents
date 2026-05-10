@@ -58,14 +58,34 @@ def extract_agent_debate_from_final_state(
     }
 
 
+_SECTION_TITLE_ZH = {
+    "Market Analyst": "市场分析师",
+    "Sentiment Analyst": "情绪分析师",
+    "News Analyst": "新闻分析师",
+    "Fundamentals Analyst": "基本面分析师",
+    "Bull/Bear Research Debate": "多空研究辩论",
+    "Research Manager": "研究经理",
+    "Trader": "交易员",
+    "Risk Debate": "风险辩论",
+    "Portfolio Manager": "组合经理",
+    "Bull Researcher": "多头研究员",
+    "Bear Researcher": "空头研究员",
+    "Risk Manager": "风险经理",
+}
+
+
+def _section_title_zh(title: str) -> str:
+    return _SECTION_TITLE_ZH.get(title, title)
+
+
 def render_agent_debate_markdown(debate: dict[str, Any]) -> str:
-    """Render a debate payload as a Markdown section for reports."""
+    """Render a debate payload as a Chinese Markdown section for reports."""
     lines = [
-        "## TradingAgents Debate",
-        f"- Debate status: {debate.get('status')}",
-        f"- Source: {debate.get('source')}",
-        f"- Final decision: {debate.get('final_decision')}",
-        "- Note: deterministic option analytics remain the audit source for prices, risk budget, liquidity, and scenario PnL.",
+        "## TradingAgents 多智能体辩论",
+        f"- 辩论状态: {debate.get('status')}",
+        f"- 来源: {debate.get('source')}",
+        f"- 最终结论: {debate.get('final_decision')}",
+        "- 说明：确定性期权 analytics 仍然是价格、风险预算、流动性和情景 PnL 的审计来源。",
         "",
     ]
     for section in debate.get("sections") or []:
@@ -73,7 +93,7 @@ def render_agent_debate_markdown(debate: dict[str, Any]) -> str:
         content = _text(section.get("content"))
         if not content:
             continue
-        lines.extend([f"### {title}", content, ""])
+        lines.extend([f"### {_section_title_zh(title)}", content, ""])
     return "\n".join(lines).strip() + "\n"
 
 
@@ -125,14 +145,16 @@ def build_live_agent_debate_provider(
     This is intentionally opt-in because it can call LLMs and external tools. Tests
     should use an injected provider or JSON file instead of live graph execution.
     """
+    resolved_config_overrides = {"output_language": "Chinese"}
+    if config_overrides:
+        resolved_config_overrides.update(config_overrides)
 
     def _provider(pack: dict[str, Any]) -> dict[str, Any]:
         from tradingagents.default_config import DEFAULT_CONFIG
         from tradingagents.graph.trading_graph import TradingAgentsGraph
 
         config = DEFAULT_CONFIG.copy()
-        if config_overrides:
-            config.update(config_overrides)
+        config.update(resolved_config_overrides)
         graph = TradingAgentsGraph(
             selected_analysts=list(selected_analysts or ["market", "news", "fundamentals"]),
             debug=False,

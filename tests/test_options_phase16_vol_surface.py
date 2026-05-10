@@ -1,4 +1,4 @@
-"""Phase 16 tests for volatility surface, skew buckets, and term-structure signals."""
+"""Phase 16 tests for 波动率曲面, skew buckets, and term-structure signals."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def test_strategy_report_carries_vol_surface_snapshot_and_prompts_reference_it(s
     surface = report["payloads"]["volatility_snapshot"]["vol_surface"]
     assert surface["term_regime"]["front_expiry"] == "2026-06-25"
     assert surface["moneyness_buckets"]["2026-06-25"]["atm"]["representative_strike"] == pytest.approx(80000)
-    assert "volatility surface" in report["markdown"].lower()
+    assert "波动率曲面" in report["markdown"].lower()
 
     prompts = [
         options_analyst_instruction("CU", "market").lower(),

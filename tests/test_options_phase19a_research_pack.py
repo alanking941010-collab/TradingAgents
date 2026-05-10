@@ -36,9 +36,9 @@ def test_research_pack_auto_selects_strategy_and_embeds_auditable_sections(shfe_
     assert pack["payloads"]["feishu_delivery_payload"]["dry_run"] is True
     assert pack["summary"]["risk_budget_cash"] == 6_000
     assert pack["summary"]["selected_decision"] in {"candidate", "watch", "no_trade"}
-    assert "Options Research Pack" in pack["markdown"]
-    assert "Strategy Selection" in pack["markdown"]
-    assert "Selected Strategy Report" in pack["markdown"]
+    assert "期权研究包" in pack["markdown"]
+    assert "策略筛选" in pack["markdown"]
+    assert "入选策略报告" in pack["markdown"]
     assert pack["assumptions"]["side_effect_free"] is True
     assert pack["assumptions"]["not_execution_instruction"] is True
 
@@ -66,7 +66,7 @@ def test_research_pack_can_override_strategy_and_include_replay_performance(shfe
     assert report["payloads"]["replay_performance_summary"]["summary_type"] == "option_replay_performance_distribution"
     assert pack["summary"]["replay_max_drawdown_cash"] == pytest.approx(1750)
     assert pack["summary"]["replay_win_rate"] == pytest.approx(1 / 3)
-    assert "Replay Performance Distribution" in pack["markdown"]
+    assert "回放绩效分布" in pack["markdown"]
 
 
 def test_research_pack_tool_returns_parseable_json_and_schema_mentions_override(shfe_options_db):

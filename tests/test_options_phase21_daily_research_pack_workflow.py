@@ -32,7 +32,7 @@ def test_daily_research_pack_workflow_writes_combined_artifacts_and_markdown(tmp
     assert workflow["success_count"] == 1
     assert workflow["failure_count"] == 0
     assert workflow["symbols_requested"] == ["CU"]
-    assert workflow["combined_markdown"].startswith("# Daily Options Research Pack")
+    assert workflow["combined_markdown"].startswith("# 每日期权研究包")
     assert "CU" in workflow["combined_markdown"]
 
     run = workflow["runs"][0]
@@ -86,9 +86,9 @@ def test_daily_research_pack_cli_prints_markdown_for_no_agent_handoff(tmp_path, 
         timeout=30,
     )
 
-    assert result.stdout.startswith("# Daily Options Research Pack")
+    assert result.stdout.startswith("# 每日期权研究包")
     assert "CU" in result.stdout
-    assert "Side-effect-free" in result.stdout
+    assert "全流程无副作用" in result.stdout
     assert list(tmp_path.glob("*_daily_research_pack_index.json"))
     assert list(tmp_path.glob("*_daily_research_pack.md"))
 

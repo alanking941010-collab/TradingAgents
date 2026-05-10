@@ -26,7 +26,7 @@ def test_option_strategy_report_pipeline_builds_markdown_with_auditable_sections
     assert report["report_type"] == "shfe_option_strategy_report"
     assert report["product"] == "CU"
     assert report["strategy_type"] == "bull_call_spread"
-    assert report["title"] == "CU bull_call_spread option strategy report — 2026-05-01"
+    assert report["title"] == "CU bull_call_spread 期权策略报告 — 2026-05-01"
     assert report["summary"]["price_basis"] == "option close + futures close"
     assert report["summary"]["risk_budget_status"] == "pass"
     assert report["payloads"]["strategy"]["margin"]["margin_required_cash"] == pytest.approx(5000)
@@ -35,16 +35,16 @@ def test_option_strategy_report_pipeline_builds_markdown_with_auditable_sections
 
     markdown = report["markdown"]
     for heading in [
-        "# CU bull_call_spread option strategy report",
-        "## Volatility Snapshot",
-        "## Strategy Candidate",
-        "## Scenario PnL",
-        "## Historical Replay",
-        "## Assumptions and Delivery Notes",
+        "# CU bull_call_spread 期权策略报告",
+        "## 波动率快照 / 波动率曲面",
+        "## 策略候选",
+        "## 情景 PnL",
+        "## 历史回放",
+        "## 假设与交付说明",
     ]:
         assert heading in markdown
     assert "option close + futures close" in markdown
-    assert "Exchange/SPAN margin is not modeled" in markdown
+    assert "未建模交易所/SPAN 保证金" in markdown
 
 
 def test_feishu_delivery_payload_is_side_effect_free_and_ready_to_send(shfe_options_db):
@@ -101,4 +101,4 @@ def test_option_report_and_feishu_delivery_tools_return_parseable_json(shfe_opti
     delivery = json.loads(raw_payload)
     assert delivery["channel"] == "feishu"
     assert delivery["dry_run"] is True
-    assert delivery["message"].startswith("# CU bull_call_spread option strategy report")
+    assert delivery["message"].startswith("# CU bull_call_spread 期权策略报告")

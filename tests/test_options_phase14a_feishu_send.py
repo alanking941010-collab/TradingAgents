@@ -130,8 +130,8 @@ def test_deliver_option_strategy_report_cli_prints_markdown_for_hermes_cron(shfe
         timeout=30,
     )
 
-    assert proc.stdout.startswith("# CU bull_call_spread option strategy report")
-    assert "## Historical Replay" in proc.stdout
+    assert proc.stdout.startswith("# CU bull_call_spread 期权策略报告")
+    assert "## 历史回放" in proc.stdout
     assert not proc.stdout.lstrip().startswith("{")
 
     payload_files = list(output_dir.glob("CU_2026-05-01_bull_call_spread_feishu_payload.json"))

@@ -111,8 +111,8 @@ def test_credit_execution_metrics_are_visible_in_report_and_tool_schema(shfe_opt
     )
     assert report["summary"]["executable_credit_cash"] == pytest.approx(4_850)
     assert report["summary"]["max_loss_at_execution_cash"] == pytest.approx(5_150)
-    assert "Executable credit" in report["markdown"]
-    assert "Credit / wing width" in report["markdown"]
+    assert "可执行 credit" in report["markdown"]
+    assert "Credit / 翼宽" in report["markdown"]
 
     schema_text = str(get_option_strategy_candidate.args_schema.model_fields)
     assert "min_credit_pct_of_wing_width" in schema_text

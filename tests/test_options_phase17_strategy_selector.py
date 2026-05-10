@@ -42,7 +42,7 @@ def test_strategy_selector_ranks_iron_condor_for_neutral_range_view(shfe_options
     assert any("range" in reason.lower() or "neutral" in reason.lower() for reason in top["ranking_reasons"])
     assert top["risk_budget_status"] == "pass"
     assert top["credit_execution"]["executable_credit_points"] > 0
-    assert "Strategy Ranking" in selection["markdown"]
+    assert "策略排序" in selection["markdown"]
 
 
 def test_strategy_selector_uses_directional_bias_to_rank_bullish_spread(shfe_options_db):

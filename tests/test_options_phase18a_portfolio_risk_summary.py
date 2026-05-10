@@ -47,8 +47,8 @@ def test_strategy_selection_includes_portfolio_risk_summary(shfe_options_db):
     assert {"rank", "strategy_type", "decision", "score", "margin_required_cash", "max_loss_cash", "risk_budget_utilization"}.issubset(
         portfolio["comparison_table"][0]
     )
-    assert "Portfolio Risk Summary" in selection["markdown"]
-    assert "Total candidate margin" in selection["markdown"]
+    assert "组合风险摘要" in selection["markdown"]
+    assert "候选总保证金" in selection["markdown"]
 
 
 def test_strategy_selection_tool_exposes_portfolio_summary(shfe_options_db):

@@ -104,7 +104,7 @@ def test_short_iron_condor_scenarios_report_and_tool_payload_are_supported(shfe_
     )
     assert report["strategy_type"] == "short_iron_condor"
     assert "short_iron_condor" in report["markdown"]
-    assert "premium type `credit`" in report["markdown"]
+    assert "权利金类型 `credit`" in report["markdown"]
 
 
 def test_options_tools_describe_short_iron_condor_strategy_type():

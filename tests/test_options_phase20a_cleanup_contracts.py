@@ -69,4 +69,4 @@ def test_research_pack_summary_exposes_selected_risk_budget_utilization(shfe_opt
     selected_utilization = pack["payloads"]["portfolio_summary"]["selected_strategy"]["risk_budget_utilization"]
     assert selected_utilization is not None
     assert pack["summary"]["selected_risk_budget_utilization"] == selected_utilization
-    assert "Risk budget utilization" in pack["markdown"]
+    assert "风险预算使用率" in pack["markdown"]

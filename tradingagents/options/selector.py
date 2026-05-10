@@ -282,24 +282,24 @@ def _score_candidate(
 
 def _render_markdown(selection: dict[str, Any]) -> str:
     lines = [
-        f"# Option Strategy Ranking — {selection['product']} {selection['trade_date']}",
+        f"# 期权策略排序 — {selection['product']} {selection['trade_date']}",
         "",
-        "## Surface Regime",
+        "## 波动率曲面状态",
     ]
     regime = selection["surface_regime"]
     lines.extend([
-        f"- Nearest expiry: {regime.get('nearest_expiry')}",
-        f"- Term shape: `{regime.get('term_shape')}` / slope {regime.get('term_slope')}",
+        f"- 最近到期: {regime.get('nearest_expiry')}",
+        f"- 期限结构: `{regime.get('term_shape')}` / slope {regime.get('term_slope')}",
         f"- Put-call skew: {regime.get('put_call_skew')}",
         f"- Risk reversal proxy: {regime.get('risk_reversal_proxy')}",
         f"- Smile curvature proxy: {regime.get('smile_curvature_proxy')}",
         "",
-        "## Strategy Ranking",
+        "## 策略排序",
     ])
     for idx, row in enumerate(selection["ranked_candidates"], start=1):
         lines.append(
-            f"{idx}. `{row['strategy_type']}` — score {row['score']} / `{row['decision']}`; "
-            f"margin={row.get('margin_required_cash')}; max_loss={row.get('max_loss_cash')}; liquidity={row.get('execution_liquidity_grade')}"
+            f"{idx}. `{row['strategy_type']}` — 评分 {row['score']} / `{row['decision']}`；"
+            f"保证金={row.get('margin_required_cash')}；最大亏损={row.get('max_loss_cash')}；流动性={row.get('execution_liquidity_grade')}"
         )
         for reason in row.get("ranking_reasons", [])[:3]:
             lines.append(f"   - {reason}")
@@ -307,18 +307,18 @@ def _render_markdown(selection: dict[str, Any]) -> str:
             lines.append(f"   - no-trade: {reason}")
     lines.extend([
         "",
-        "## Portfolio Risk Summary",
+        "## 组合风险摘要",
     ])
     portfolio = selection.get("portfolio_summary") or {}
     selected = portfolio.get("selected_strategy") or {}
     lines.extend([
-        f"- Risk budget: {portfolio.get('risk_budget_cash')}",
-        f"- Candidate count: {portfolio.get('candidate_count')} total / {portfolio.get('tradable_candidate_count')} tradable / {portfolio.get('no_trade_count')} no-trade",
-        f"- Selected strategy: `{selected.get('strategy_type')}`; risk-budget utilization={selected.get('risk_budget_utilization')}",
-        f"- Total candidate margin: {portfolio.get('all_candidate_margin_cash')}; utilization={portfolio.get('all_candidate_margin_utilization')}",
-        f"- Total candidate max loss: {portfolio.get('all_candidate_max_loss_cash')}; utilization={portfolio.get('all_candidate_max_loss_utilization')}",
+        f"- 风险预算: {portfolio.get('risk_budget_cash')}",
+        f"- 候选数量: {portfolio.get('candidate_count')} 总数 / {portfolio.get('tradable_candidate_count')} 可审阅 / {portfolio.get('no_trade_count')} no-trade",
+        f"- 入选策略: `{selected.get('strategy_type')}`；风险预算使用率={selected.get('risk_budget_utilization')}",
+        f"- 候选总保证金: {portfolio.get('all_candidate_margin_cash')}；使用率={portfolio.get('all_candidate_margin_utilization')}",
+        f"- 候选总最大亏损: {portfolio.get('all_candidate_max_loss_cash')}；使用率={portfolio.get('all_candidate_max_loss_utilization')}",
         "",
-        "| Rank | Strategy | Decision | Score | Margin cash | Max loss cash | Risk budget use | Liquidity |",
+        "| 排名 | 策略 | 决策 | 评分 | 保证金现金 | 最大亏损现金 | 风险预算使用率 | 流动性 |",
         "|---:|---|---|---:|---:|---:|---:|---|",
     ])
     for row in portfolio.get("comparison_table", [])[:8]:
@@ -328,10 +328,10 @@ def _render_markdown(selection: dict[str, Any]) -> str:
         )
     lines.extend([
         "",
-        "## Assumptions",
-        "- Ranking is deterministic and pre-trade only; it is not an execution instruction.",
-        "- Portfolio summary compares candidates side by side; it is not a recommendation to allocate to every listed strategy.",
-        "- Uses option close + futures close analytics, bid/ask execution proxies when available, simplified defined-risk margin, and risk-budget checks.",
+        "## 假设",
+        "- 排名是确定性的盘前研究辅助，不是执行指令。",
+        "- 组合摘要用于横向比较候选策略，不代表建议同时配置每一行策略。",
+        "- 使用期权 close + 期货 close analytics、可用时的 bid/ask 执行代理、简化 defined-risk 保证金和风险预算检查。",
     ])
     return "\n".join(lines) + "\n"
 

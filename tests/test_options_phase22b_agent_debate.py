@@ -31,7 +31,7 @@ def _fake_agent_debate(pack: dict) -> dict:
             {"title": "Bull Researcher", "content": "Bull case: tight inventories support upside tails."},
             {"title": "Bear Researcher", "content": "Bear case: macro softness caps rallies."},
             {"title": "Risk Manager", "content": "Relaxed constraints keep the trade for review; do not treat as executable."},
-            {"title": "Portfolio Manager", "content": "Final stance is watch, not automatic execution."},
+            {"title": "组合经理", "content": "Final stance is watch, not automatic execution."},
         ],
     }
 
@@ -89,18 +89,18 @@ def test_daily_workflow_appends_agent_debate_to_markdown_docx_and_index(tmp_path
 
     assert workflow["agent_debate_enabled"] is True
     assert workflow["runs"][0]["agent_debate_status"] == "success"
-    assert "TradingAgents Debate" in workflow["combined_markdown"]
-    assert "Portfolio Manager" in workflow["combined_markdown"]
+    assert "TradingAgents 多智能体辩论" in workflow["combined_markdown"]
+    assert "组合经理" in workflow["combined_markdown"]
     assert "Relaxed constraints" in workflow["combined_markdown"]
 
     pack = json.loads((tmp_path / workflow["runs"][0]["output_pack"]).read_text(encoding="utf-8"))
     assert pack["agent_debate"]["status"] == "success"
-    assert "TradingAgents Debate" in pack["markdown"]
+    assert "TradingAgents 多智能体辩论" in pack["markdown"]
 
     symbol_docx = tmp_path / workflow["runs"][0]["output_docx"]
     combined_docx = tmp_path / workflow["output_docx"]
-    assert "TradingAgents Debate" in _docx_xml(symbol_docx)
-    assert "TradingAgents Debate" in _docx_xml(combined_docx)
+    assert "TradingAgents 多智能体辩论" in _docx_xml(symbol_docx)
+    assert "TradingAgents 多智能体辩论" in _docx_xml(combined_docx)
 
     index = json.loads((tmp_path / workflow["artifact_index"]).read_text(encoding="utf-8"))
     assert index["agent_debate_enabled"] is True
@@ -141,5 +141,5 @@ def test_daily_cli_can_append_precomputed_agent_debate_json(tmp_path, shfe_optio
     assert summary["constraint_mode"] == "relaxed"
     assert summary["agent_debate_enabled"] is True
     assert summary["runs"][0]["agent_debate_status"] == "success"
-    assert "TradingAgents Debate" in (tmp_path / summary["output_markdown"]).read_text(encoding="utf-8")
-    assert "TradingAgents Debate" in _docx_xml(tmp_path / summary["output_docx"])
+    assert "TradingAgents 多智能体辩论" in (tmp_path / summary["output_markdown"]).read_text(encoding="utf-8")
+    assert "TradingAgents 多智能体辩论" in _docx_xml(tmp_path / summary["output_docx"])

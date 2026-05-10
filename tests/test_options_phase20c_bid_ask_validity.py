@@ -88,5 +88,5 @@ def test_report_marks_non_executable_credit_as_indicative(shfe_options_db):
 
     assert report["summary"]["credit_quote_status"] == "indicative"
     assert report["summary"]["executable_credit_cash"] is None
-    assert "Indicative credit" in report["markdown"]
-    assert "Executable credit: N/A" not in report["markdown"]
+    assert "指示性 credit" in report["markdown"]
+    assert "可执行 credit: N/A" not in report["markdown"]

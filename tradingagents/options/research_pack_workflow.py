@@ -72,26 +72,26 @@ def _relative(path: Path, root: Path) -> str:
 
 def _render_combined_markdown(workflow: dict[str, Any], pack_markdowns: list[str]) -> str:
     lines = [
-        f"# Daily Options Research Pack — {_safe_part(workflow.get('trade_date'))}",
+        f"# 每日期权研究包 — {_safe_part(workflow.get('trade_date'))}",
         "",
-        "## Workflow Summary",
-        f"- Symbols requested: {', '.join(workflow['symbols_requested'])}",
-        f"- Success count: {workflow['success_count']}",
-        f"- Failure count: {workflow['failure_count']}",
-        f"- Target: {workflow.get('target')}",
-        "- Side-effect-free: this workflow writes artifacts and prints Markdown only; Hermes/Gateway delivery is external.",
-        "- Not an execution instruction: no orders are sent.",
+        "## 工作流摘要",
+        f"- 请求品种: {', '.join(workflow['symbols_requested'])}",
+        f"- 成功数量: {workflow['success_count']}",
+        f"- 失败数量: {workflow['failure_count']}",
+        f"- 目标标签: {workflow.get('target')}",
+        "- 全流程无副作用：仅写入本地 artifacts 并打印 Markdown；Hermes/Gateway 交付由外部显式执行。",
+        "- 非执行指令：不会自动发送下单。",
         "",
-        "## Per-symbol Results",
+        "## 分品种结果",
     ]
     for run in workflow["runs"]:
         if run["status"] == "success":
             lines.append(
-                f"- {run['symbol']}: {run['status']}, selected={run.get('selected_strategy')}, "
-                f"trade_date={run.get('trade_date')}, markdown={run.get('output_markdown')}"
+                f"- {run['symbol']}: {run['status']}，入选={run.get('selected_strategy')}，"
+                f"交易日={run.get('trade_date')}，Markdown={run.get('output_markdown')}"
             )
         else:
-            lines.append(f"- {run['symbol']}: {run['status']}, error={run.get('error_type')}: {run.get('error_message')}")
+            lines.append(f"- {run['symbol']}: {run['status']}，错误={run.get('error_type')}: {run.get('error_message')}")
     if pack_markdowns:
         lines.extend(["", "---", ""])
         lines.append("\n\n---\n\n".join(markdown.strip() for markdown in pack_markdowns if markdown))

@@ -39,13 +39,13 @@ def test_daily_workflow_writes_combined_and_per_symbol_docx(tmp_path, shfe_optio
 
     combined_docx = tmp_path / workflow["output_docx"]
     combined_xml = _docx_text(combined_docx)
-    assert "Daily Options Research Pack" in combined_xml
+    assert "每日期权研究包" in combined_xml
     assert "short_iron_condor" in combined_xml
 
     run = workflow["runs"][0]
     symbol_docx = tmp_path / run["output_docx"]
     symbol_xml = _docx_text(symbol_docx)
-    assert "Options Research Pack" in symbol_xml
+    assert "期权研究包" in symbol_xml
     assert "CU 2026-05-01" in symbol_xml
     assert "short_iron_condor" in symbol_xml
 
@@ -124,5 +124,5 @@ def test_single_research_pack_cli_writes_docx_artifact(tmp_path, shfe_options_db
     assert summary["output_docx"].endswith("_research_pack.docx")
     docx_path = Path(summary["output_docx"])
     xml = _docx_text(docx_path)
-    assert "Options Research Pack" in xml
+    assert "期权研究包" in xml
     assert "short_iron_condor" in xml

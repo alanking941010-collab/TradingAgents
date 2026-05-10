@@ -83,7 +83,7 @@ def test_strategy_report_includes_replay_performance_summary(shfe_options_db):
 
     assert report["payloads"]["replay_performance_summary"]["summary_type"] == "option_replay_performance_distribution"
     assert report["summary"]["replay_max_drawdown_cash"] == pytest.approx(1750)
-    assert "Replay Performance Distribution" in report["markdown"]
+    assert "回放绩效分布" in report["markdown"]
 
 
 def test_replay_tool_exposes_performance_summary(shfe_options_db):
