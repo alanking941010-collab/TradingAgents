@@ -136,6 +136,7 @@ def _score_candidate(
     surface_regime: dict[str, Any],
     directional_bias: str | None,
     volatility_view: str | None,
+    constraint_mode: str = "strict",
 ) -> dict[str, Any]:
     strategy = candidate["strategy_type"]
     bias = (directional_bias or "neutral").strip().lower().replace("-", "_")
@@ -213,23 +214,42 @@ def _score_candidate(
         score += 4
         reasons.append(f"Term regime `{term_shape}` is compatible with defined-risk range structures.")
 
+    strict_constraints = (constraint_mode or "strict").strip().lower() != "relaxed"
+
     if liquidity.get("passes") is False:
-        score -= 18
-        no_trade_reasons.append("liquidity filter failed")
+        score -= 18 if strict_constraints else 8
+        if strict_constraints:
+            no_trade_reasons.append("liquidity filter failed")
+        else:
+            reasons.append("Relaxed constraint mode: liquidity filter failed, but the structure remains for review.")
     if execution.get("execution_liquidity_grade") in {"weak", "poor"}:
         score -= 14
         reasons.append("Execution liquidity grade is weak/poor; keep the structure on watch unless other risk checks fail.")
     if risk_budget.get("passes") is False:
-        score -= 35
-        no_trade_reasons.extend(risk_budget.get("no_trade_reasons") or ["risk budget failed"])
+        score -= 35 if strict_constraints else 18
+        budget_reasons = risk_budget.get("no_trade_reasons") or ["risk budget failed"]
+        if strict_constraints:
+            no_trade_reasons.extend(budget_reasons)
+        else:
+            reasons.append(
+                "Relaxed constraint mode: risk budget failed, but the structure remains for sizing/manual review."
+            )
+            reasons.extend(f"Soft risk-budget warning: {reason}" for reason in budget_reasons[:3])
     elif risk_budget.get("passes") is True:
         score += 8
         reasons.append("Risk budget check passes.")
 
     if credit_execution is not None:
         if credit_execution.get("passes_credit_quality") is False:
-            score -= 25
-            no_trade_reasons.extend(credit_execution.get("no_trade_reasons") or ["credit quality filter failed"])
+            score -= 25 if strict_constraints else 12
+            credit_reasons = credit_execution.get("no_trade_reasons") or ["credit quality filter failed"]
+            if strict_constraints:
+                no_trade_reasons.extend(credit_reasons)
+            else:
+                reasons.append(
+                    "Relaxed constraint mode: credit-quality filter failed, but the structure remains for review."
+                )
+                reasons.extend(f"Soft credit-quality warning: {reason}" for reason in credit_reasons[:3])
         executable_credit_pct = credit_execution.get("executable_credit_pct_of_wing_width")
         if isinstance(executable_credit_pct, (int, float)) and executable_credit_pct >= 0.2:
             score += 8
@@ -327,6 +347,7 @@ def build_option_strategy_selection(
     strategy_types: Iterable[str] = _DEFAULT_STRATEGIES,
     min_credit_pct_of_wing_width: float | None = None,
     max_bid_ask_spread_pct: float | None = None,
+    constraint_mode: str = "strict",
     analysis_context: OptionAnalysisContext | None = None,
 ) -> dict[str, Any]:
     """Rank supported option strategies using deterministic analytics and risk fields."""
@@ -351,7 +372,7 @@ def build_option_strategy_selection(
         except Exception as exc:  # keep selector robust to missing wings/rows for specific structures
             errors.append({"strategy_type": strategy_type, "error": str(exc)})
             continue
-        ranked.append(_score_candidate(candidate, regime, directional_bias, volatility_view))
+        ranked.append(_score_candidate(candidate, regime, directional_bias, volatility_view, constraint_mode=constraint_mode))
 
     ranked.sort(key=lambda row: (-float(row["score"]), row["strategy_type"]))
     selected = next((row["strategy_type"] for row in ranked if row["decision"] != "no_trade"), ranked[0]["strategy_type"] if ranked else None)
@@ -374,6 +395,7 @@ def build_option_strategy_selection(
         "errors": errors,
         "assumptions": {
             "selector_model": "deterministic_rules_v1",
+            "selector_constraint_mode": constraint_mode,
             "margin_model": "simplified_defined_risk",
             "execution_model": "bid/ask proxy when available",
             "not_execution_instruction": True,

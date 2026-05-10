@@ -87,6 +87,7 @@ def build_option_research_pack(
     risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
     min_credit_pct_of_wing_width: float | None = None,
     max_bid_ask_spread_pct: float | None = None,
+    constraint_mode: str = "strict",
     delivery_target: str | None = None,
     analysis_context: OptionAnalysisContext | None = None,
 ) -> dict[str, Any]:
@@ -107,6 +108,7 @@ def build_option_research_pack(
         risk_free_rate=risk_free_rate,
         min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
         max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+        constraint_mode=constraint_mode,
         analysis_context=context,
     )
     selected_strategy = strategy_type or selection.get("selected_strategy")
@@ -160,6 +162,7 @@ def build_option_research_pack(
             "side_effect_free": True,
             "not_execution_instruction": True,
             "selector_model": selection.get("assumptions", {}).get("selector_model"),
+            "selector_constraint_mode": selection.get("assumptions", {}).get("selector_constraint_mode"),
             "report_side_effect_free": report.get("assumptions", {}).get("feishu_delivery_side_effect_free"),
         },
     }
@@ -179,6 +182,7 @@ def build_option_research_pack_hermes_cron_spec(
     risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
     min_credit_pct_of_wing_width: float | None = None,
     max_bid_ask_spread_pct: float | None = None,
+    constraint_mode: str = "strict",
     target: str | None = None,
     schedule: str = "0 8 * * 1-5",
     output_dir: str | None = None,
@@ -202,6 +206,7 @@ def build_option_research_pack_hermes_cron_spec(
         risk_free_rate=risk_free_rate,
         min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
         max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+        constraint_mode=constraint_mode,
         delivery_target=target,
     )
     deliver_target = target or "feishu"
@@ -216,6 +221,7 @@ def build_option_research_pack_hermes_cron_spec(
     _append_option(args, "--risk-budget-cash", risk_budget_cash)
     _append_option(args, "--min-credit-pct-of-wing-width", min_credit_pct_of_wing_width)
     _append_option(args, "--max-bid-ask-spread-pct", max_bid_ask_spread_pct)
+    _append_option(args, "--constraint-mode", constraint_mode)
     _append_option(args, "--target", deliver_target)
     _append_option(args, "--output-dir", output_dir)
     args.extend(["--stdout", "markdown"])

@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from tradingagents.options.agent_debate import AgentDebateProvider, append_agent_debate_to_research_pack
 from tradingagents.options.docx_report import write_docx_report
 from tradingagents.options.research_pack import build_option_research_pack
 
@@ -108,9 +109,11 @@ def build_daily_options_research_pack_workflow(
     risk_budget_cash: float | None = None,
     min_credit_pct_of_wing_width: float | None = None,
     max_bid_ask_spread_pct: float | None = None,
+    constraint_mode: str = "strict",
     delivery_target: str | None = "feishu",
     output_dir: str | Path | None = None,
     continue_on_error: bool = True,
+    agent_debate_provider: AgentDebateProvider | None = None,
 ) -> dict[str, Any]:
     """Build multiple side-effect-free research packs and one combined handoff.
 
@@ -140,6 +143,8 @@ def build_daily_options_research_pack_workflow(
         "target": delivery_target or "feishu",
         "side_effect_free": True,
         "not_execution_instruction": True,
+        "constraint_mode": constraint_mode,
+        "agent_debate_enabled": agent_debate_provider is not None,
         "runs": runs,
         "success_count": 0,
         "failure_count": 0,
@@ -162,8 +167,11 @@ def build_daily_options_research_pack_workflow(
                 risk_budget_cash=risk_budget_cash,
                 min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
                 max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+                constraint_mode=constraint_mode,
                 delivery_target=delivery_target,
             )
+            if agent_debate_provider is not None:
+                pack = append_agent_debate_to_research_pack(pack, agent_debate_provider(pack))
             pack_path, markdown_path, docx_path, payload_path = _artifact_paths(outdir, pack)
             payload = pack["payloads"]["feishu_delivery_payload"]
             pack_path.write_text(json.dumps(pack, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
@@ -180,6 +188,8 @@ def build_daily_options_research_pack_workflow(
                     "selection_mode": pack["selection_mode"],
                     "selected_strategy": pack["selected_strategy"],
                     "risk_budget_cash": pack["summary"].get("risk_budget_cash"),
+                    "constraint_mode": constraint_mode,
+                    "agent_debate_status": (pack.get("agent_debate") or {}).get("status"),
                     "target": payload["target"],
                     "dry_run": payload["dry_run"],
                     "output_pack": _relative(pack_path, outdir),
@@ -222,6 +232,7 @@ def build_daily_options_research_pack_hermes_cron_spec(
     risk_budget_cash: float | None = None,
     min_credit_pct_of_wing_width: float | None = None,
     max_bid_ask_spread_pct: float | None = None,
+    constraint_mode: str = "strict",
     target: str | None = "feishu",
     schedule: str = DEFAULT_DAILY_CRON_SCHEDULE,
     output_dir: str | None = None,
@@ -247,6 +258,7 @@ def build_daily_options_research_pack_hermes_cron_spec(
     _append_option(args, "--risk-budget-cash", risk_budget_cash)
     _append_option(args, "--min-credit-pct-of-wing-width", min_credit_pct_of_wing_width)
     _append_option(args, "--max-bid-ask-spread-pct", max_bid_ask_spread_pct)
+    _append_option(args, "--constraint-mode", constraint_mode)
     _append_option(args, "--target", deliver_target)
     _append_option(args, "--output-dir", output_dir)
     args.extend(["--stdout", "markdown"])
@@ -264,6 +276,7 @@ def build_daily_options_research_pack_hermes_cron_spec(
             "trade_date": trade_date or "latest",
             "target": deliver_target,
             "schedule": schedule,
+            "constraint_mode": constraint_mode,
         },
         "artifacts": {
             "output_dir": output_dir,

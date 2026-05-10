@@ -258,6 +258,23 @@ This is still only a handoff. A real scheduled send requires creating a Hermes
 no-agent cron job from the spec (or explicitly using Hermes/Gateway delivery) and
 then verifying delivery.
 
+Phase 22B adds an optional TradingAgents debate attachment layer:
+
+```text
+tradingagents/options/agent_debate.py
+```
+
+The deterministic research pack remains the audit source for option prices, volatility diagnostics, strategy legs, liquidity proxy, margin, risk budget, and scenario PnL. When `--with-agent-debate` is enabled, the CLI runs the live `TradingAgentsGraph` and appends extracted sections (market/news/fundamentals, bull/bear debate, research manager, trader, risk debate, portfolio manager) into Markdown and DOCX. Because this can call LLMs and external tools, it is opt-in. For offline/tested workflows, `--agent-debate-json <path>` appends a precomputed debate payload without live LLM calls.
+
+Phase 22B also adds selector constraint handling:
+
+```bash
+--constraint-mode strict   # default for core APIs; old behavior
+--constraint-mode relaxed  # CLI default; softens liquidity/risk-budget/credit-filter failures
+```
+
+In `relaxed` mode, failed liquidity/risk-budget/credit-quality checks remain visible as warnings and score penalties, but do not automatically force `no_trade`. This is intended for trader review lists, not automatic execution.
+
 Phase 21 adds a daily/batch workflow entrypoint:
 
 ```text
@@ -337,6 +354,7 @@ the original graph:
 - Phase 20G maintainability cleanup centralizes Alan local data warehouse env vars/default paths in `tradingagents/dataflows/local_paths.py` so options and business-data loaders share one source of truth while preserving env overrides and read-only SQLite access.
 - Phase 21 operational workflow adds `tradingagents/options/research_pack_workflow.py` and `scripts/build_options_research_pack_daily.py` for multi-symbol daily research-pack generation, per-symbol artifacts, combined Markdown stdout for Hermes no-agent delivery, and a side-effect-free cron-spec handoff.
 - Phase 22A DOCX export adds `tradingagents/options/docx_report.py` so single-symbol and daily/batch research-pack workflows write Word `.docx` reports alongside Markdown/JSON artifacts without requiring Pandoc or python-docx.
+- Phase 22B agent-debate integration adds `tradingagents/options/agent_debate.py`, optional `--with-agent-debate` / `--agent-debate-json` report sections, and `--constraint-mode relaxed` so liquidity/risk-budget/credit-filter failures can remain review candidates with explicit warnings rather than hard no-trade exclusions.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -358,8 +376,8 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 
 ```bash
 cd /mnt/e/cautious_twinkle/projects/TradingAgents
-ruff check tests/conftest.py tests/test_options_*.py tests/test_analyze_options_script.py tests/test_alan_business_db_dataflow.py scripts/analyze_options.py scripts/deliver_option_strategy_report.py scripts/build_option_research_pack.py scripts/build_options_research_pack_daily.py scripts/options_cli_common.py tradingagents/dataflows/local_paths.py tradingagents/dataflows/alan_business_db.py tradingagents/options/data_loader.py tradingagents/options/context.py tradingagents/options/schemas.py tradingagents/options/docx_report.py tradingagents/options/research_pack_workflow.py tradingagents/options/strategies.py tradingagents/options/selector.py tradingagents/options/research_pack.py tradingagents/options/reports.py tradingagents/options/scenarios.py
-.venv/bin/python -m pytest tests/test_options_phase22a_docx_reports.py tests/test_options_phase21_daily_research_pack_workflow.py tests/test_options_phase19b_research_pack_cli.py -q
+ruff check tests/conftest.py tests/test_options_*.py tests/test_analyze_options_script.py tests/test_alan_business_db_dataflow.py scripts/analyze_options.py scripts/deliver_option_strategy_report.py scripts/build_option_research_pack.py scripts/build_options_research_pack_daily.py scripts/options_cli_common.py tradingagents/dataflows/local_paths.py tradingagents/dataflows/alan_business_db.py tradingagents/agents/utils/options_tools.py tradingagents/options/data_loader.py tradingagents/options/context.py tradingagents/options/schemas.py tradingagents/options/agent_debate.py tradingagents/options/docx_report.py tradingagents/options/research_pack_workflow.py tradingagents/options/strategies.py tradingagents/options/selector.py tradingagents/options/research_pack.py tradingagents/options/reports.py tradingagents/options/scenarios.py
+.venv/bin/python -m pytest tests/test_options_phase22b_agent_debate.py tests/test_options_phase22a_docx_reports.py tests/test_options_phase21_daily_research_pack_workflow.py tests/test_options_phase17_strategy_selector.py tests/test_options_phase19a_research_pack.py tests/test_options_phase19b_research_pack_cli.py -q
 .venv/bin/python -m pytest tests/test_options_phase20e_test_hygiene.py -q
 .venv/bin/python -m pytest tests/test_options_phase19c_research_pack_delivery.py tests/test_options_analyst_integration.py -q
 .venv/bin/python -m pytest tests/test_options_phase19b_research_pack_cli.py tests/test_options_phase19a_research_pack.py -q

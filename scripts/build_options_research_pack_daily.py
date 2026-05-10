@@ -17,6 +17,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.options_cli_common import resolve_output_dir  # noqa: E402
+from tradingagents.options.agent_debate import build_live_agent_debate_provider, load_agent_debate_json  # noqa: E402
 from tradingagents.options.research_pack_workflow import (  # noqa: E402
     DEFAULT_DAILY_CRON_SCHEDULE,
     DEFAULT_DAILY_SYMBOLS,
@@ -61,11 +62,27 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional bid/ask quality filter",
     )
+    parser.add_argument(
+        "--constraint-mode",
+        choices=["strict", "relaxed"],
+        default="relaxed",
+        help="Selector constraint handling. relaxed keeps liquidity/risk-budget failures as review candidates with warnings.",
+    )
     parser.add_argument("--target", dest="delivery_target", default="feishu", help="Hermes delivery target label")
     parser.add_argument(
         "--cron-schedule",
         default=DEFAULT_DAILY_CRON_SCHEDULE,
         help="Schedule used when printing a Hermes no-agent cron spec",
+    )
+    parser.add_argument(
+        "--agent-debate-json",
+        default=None,
+        help="Optional precomputed TradingAgents debate JSON to append to each pack without live LLM calls.",
+    )
+    parser.add_argument(
+        "--with-agent-debate",
+        action="store_true",
+        help="Run the live TradingAgentsGraph for each successful pack and append debate sections. This can call LLMs.",
     )
     parser.add_argument(
         "--output-dir",
@@ -94,6 +111,8 @@ def _summary(workflow: dict) -> dict:
         "success_count": workflow["success_count"],
         "failure_count": workflow["failure_count"],
         "target": workflow.get("target"),
+        "constraint_mode": workflow.get("constraint_mode"),
+        "agent_debate_enabled": workflow.get("agent_debate_enabled"),
         "stdout_mode": "summary-json",
         "output_dir": workflow["output_dir"],
         "output_markdown": workflow["output_markdown"],
@@ -121,12 +140,21 @@ def main(argv: list[str] | None = None) -> int:
             risk_budget_cash=args.risk_budget_cash,
             min_credit_pct_of_wing_width=args.min_credit_pct_of_wing_width,
             max_bid_ask_spread_pct=args.max_bid_ask_spread_pct,
+            constraint_mode=args.constraint_mode,
             target=args.delivery_target,
             schedule=args.cron_schedule,
             output_dir=str(output_dir),
         )
         print(json.dumps(spec, ensure_ascii=False, indent=2, default=str))
         return 0
+
+    if args.agent_debate_json and args.with_agent_debate:
+        raise ValueError("Use either --agent-debate-json or --with-agent-debate, not both")
+    agent_debate_provider = None
+    if args.agent_debate_json:
+        agent_debate_provider = load_agent_debate_json(args.agent_debate_json)
+    elif args.with_agent_debate:
+        agent_debate_provider = build_live_agent_debate_provider()
 
     workflow = build_daily_options_research_pack_workflow(
         symbols=symbols,
@@ -139,9 +167,11 @@ def main(argv: list[str] | None = None) -> int:
         risk_budget_cash=args.risk_budget_cash,
         min_credit_pct_of_wing_width=args.min_credit_pct_of_wing_width,
         max_bid_ask_spread_pct=args.max_bid_ask_spread_pct,
+        constraint_mode=args.constraint_mode,
         delivery_target=args.delivery_target,
         output_dir=output_dir,
         continue_on_error=not args.fail_fast,
+        agent_debate_provider=agent_debate_provider,
     )
 
     if args.stdout == "summary-json":

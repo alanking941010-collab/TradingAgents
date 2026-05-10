@@ -18,6 +18,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.options_cli_common import resolve_output_dir  # noqa: E402
+from tradingagents.options.agent_debate import (  # noqa: E402
+    append_agent_debate_to_research_pack,
+    build_live_agent_debate_provider,
+    load_agent_debate_json,
+)
 from tradingagents.options.docx_report import write_docx_report  # noqa: E402
 from tradingagents.options.research_pack import (  # noqa: E402
     build_option_research_pack,
@@ -61,8 +66,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional bid/ask quality filter",
     )
+    parser.add_argument(
+        "--constraint-mode",
+        choices=["strict", "relaxed"],
+        default="relaxed",
+        help="Selector constraint handling. relaxed keeps liquidity/risk-budget failures as review candidates with warnings.",
+    )
     parser.add_argument("--target", dest="delivery_target", default="feishu", help="Dry-run Feishu/Hermes target label")
     parser.add_argument("--cron-schedule", default="0 8 * * 1-5", help="Schedule used when printing a Hermes no-agent cron spec")
+    parser.add_argument(
+        "--agent-debate-json",
+        default=None,
+        help="Optional precomputed TradingAgents debate JSON to append to Markdown/DOCX without live LLM calls.",
+    )
+    parser.add_argument(
+        "--with-agent-debate",
+        action="store_true",
+        help="Run the live TradingAgentsGraph and append analyst/debate/risk/portfolio sections. This can call LLMs.",
+    )
     parser.add_argument("--output-dir", default=None, help="Artifact directory; defaults to TRADINGAGENTS_OPTIONS_RESEARCH_PACKS_OUTPUT_DIR or TRADINGAGENTS_OPTIONS_OUTPUT_ROOT/research_packs")
     parser.add_argument(
         "--stdout",
@@ -96,8 +117,15 @@ def main(argv: list[str] | None = None) -> int:
         risk_budget_cash=args.risk_budget_cash,
         min_credit_pct_of_wing_width=args.min_credit_pct_of_wing_width,
         max_bid_ask_spread_pct=args.max_bid_ask_spread_pct,
+        constraint_mode=args.constraint_mode,
         delivery_target=args.delivery_target,
     )
+    if args.agent_debate_json and args.with_agent_debate:
+        raise ValueError("Use either --agent-debate-json or --with-agent-debate, not both")
+    if args.agent_debate_json:
+        pack = append_agent_debate_to_research_pack(pack, load_agent_debate_json(args.agent_debate_json)(pack))
+    elif args.with_agent_debate:
+        pack = append_agent_debate_to_research_pack(pack, build_live_agent_debate_provider()(pack))
 
     output_dir = resolve_output_dir(args.output_dir, kind="research_packs")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -116,6 +144,8 @@ def main(argv: list[str] | None = None) -> int:
         "selection_mode": pack["selection_mode"],
         "selected_strategy": pack["selected_strategy"],
         "risk_budget_cash": pack["summary"].get("risk_budget_cash"),
+        "constraint_mode": args.constraint_mode,
+        "agent_debate_status": (pack.get("agent_debate") or {}).get("status"),
         "replay_max_drawdown_cash": pack["summary"].get("replay_max_drawdown_cash"),
         "replay_win_rate": pack["summary"].get("replay_win_rate"),
         "target": payload["target"],
@@ -144,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
             risk_budget_cash=args.risk_budget_cash,
             min_credit_pct_of_wing_width=args.min_credit_pct_of_wing_width,
             max_bid_ask_spread_pct=args.max_bid_ask_spread_pct,
+            constraint_mode=args.constraint_mode,
             target=args.delivery_target,
             schedule=args.cron_schedule,
             output_dir=str(output_dir),

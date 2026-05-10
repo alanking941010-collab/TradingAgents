@@ -23,7 +23,6 @@ from tradingagents.options.scenarios import build_option_strategy_scenarios
 from tradingagents.options.selector import build_option_strategy_selection
 from tradingagents.options.strategies import build_option_strategy_candidate
 
-
 _AGENT_LENS = {
     "market_analyst": "underlying trend, RV, technical context, and futures anchor",
     "fundamentals_analyst": "inventory, term structure, macro anchors, and volatility regime context",
@@ -261,6 +260,7 @@ def get_option_strategy_selection(
     risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY for ranking and no-trade checks"] = None,
     min_credit_pct_of_wing_width: Annotated[float | None, "Optional credit filter for short iron condor; executable credit divided by wing width must be at least this ratio"] = None,
     max_bid_ask_spread_pct: Annotated[float | None, "Optional bid/ask filter; maximum leg bid/ask spread percentage must be at or below this ratio"] = None,
+    constraint_mode: Annotated[str, "Constraint handling: strict turns liquidity/risk-budget/credit filter failures into no_trade; relaxed keeps them as review candidates with warnings"] = "strict",
 ) -> str:
     """Return deterministic option strategy ranking from vol surface, execution, margin, and risk budget."""
     return json.dumps(
@@ -273,6 +273,7 @@ def get_option_strategy_selection(
             risk_budget_cash=risk_budget_cash,
             min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
             max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+            constraint_mode=constraint_mode,
         ),
         ensure_ascii=False,
         default=str,
@@ -367,6 +368,7 @@ def get_option_research_pack(
     risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY"] = None,
     min_credit_pct_of_wing_width: Annotated[float | None, "Optional credit filter for short iron condor; executable credit divided by wing width must be at least this ratio"] = None,
     max_bid_ask_spread_pct: Annotated[float | None, "Optional bid/ask filter; maximum leg bid/ask spread percentage must be at or below this ratio"] = None,
+    constraint_mode: Annotated[str, "Constraint handling for selector_auto: strict or relaxed"] = "strict",
     delivery_target: Annotated[str | None, "Optional Feishu/Hermes target for dry-run delivery payload"] = None,
 ) -> str:
     """Return one side-effect-free research pack: selection, portfolio summary, selected report, replay, and Feishu payload."""
@@ -382,6 +384,7 @@ def get_option_research_pack(
             risk_budget_cash=risk_budget_cash,
             min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
             max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+            constraint_mode=constraint_mode,
             delivery_target=delivery_target,
         ),
         ensure_ascii=False,
@@ -401,6 +404,7 @@ def get_option_research_pack_hermes_cron_spec(
     risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY"] = None,
     min_credit_pct_of_wing_width: Annotated[float | None, "Optional credit filter for short iron condor; executable credit divided by wing width must be at least this ratio"] = None,
     max_bid_ask_spread_pct: Annotated[float | None, "Optional bid/ask filter; maximum leg bid/ask spread percentage must be at or below this ratio"] = None,
+    constraint_mode: Annotated[str, "Constraint handling for selector_auto: strict or relaxed"] = "strict",
     target: Annotated[str | None, "Feishu/Hermes delivery target, e.g. feishu:oc_xxx"] = None,
     schedule: Annotated[str, "Hermes cron schedule, e.g. '0 8 * * 1-5'"] = "0 8 * * 1-5",
     output_dir: Annotated[str | None, "Optional artifact output directory for the cron script"] = None,
@@ -418,6 +422,7 @@ def get_option_research_pack_hermes_cron_spec(
             risk_budget_cash=risk_budget_cash,
             min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
             max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+            constraint_mode=constraint_mode,
             target=target,
             schedule=schedule,
             output_dir=output_dir,
