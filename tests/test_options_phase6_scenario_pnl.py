@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
-
 
 def test_strategy_scenario_matrix_contains_price_iv_and_time_dimensions(shfe_options_db):
     from tradingagents.options.scenarios import build_option_strategy_scenarios

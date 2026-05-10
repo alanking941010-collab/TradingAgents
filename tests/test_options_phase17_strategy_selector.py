@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
 from tests.test_options_phase14b_credit_strategies import _install_iron_condor_wings
 from tests.test_options_phase15_credit_execution import _install_iron_condor_bid_ask_snapshot
 

@@ -8,8 +8,6 @@ from statistics import NormalDist
 
 import pytest
 
-from tests.test_options_analytics_core import shfe_options_db  # noqa: F401
-
 
 def _strike_for_black76_delta(
     *,

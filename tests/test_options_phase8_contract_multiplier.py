@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
-
 
 def test_strategy_candidate_applies_contract_multiplier_to_cash_risk_fields(shfe_options_db):
     from tradingagents.options.strategies import build_option_strategy_candidate

@@ -7,8 +7,6 @@ import sqlite3
 
 import pytest
 
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
-
 
 def _install_iron_condor_wings(db_path):
     """Add wider wings and coherent mid prices for a short iron condor fixture."""

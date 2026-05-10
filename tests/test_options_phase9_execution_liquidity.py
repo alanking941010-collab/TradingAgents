@@ -6,8 +6,6 @@ import sqlite3
 
 import pytest
 
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
-
 
 def _install_akshare_bid_ask_snapshot(db_path):
     con = sqlite3.connect(db_path)

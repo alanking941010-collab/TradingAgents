@@ -6,7 +6,6 @@ import json
 
 import pytest
 
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
 from tests.test_options_phase12_replay import _insert_review_day
 from tests.test_options_phase17_strategy_selector import _install_selector_fixture
 from tests.test_options_phase18b_replay_performance import _insert_second_review_day

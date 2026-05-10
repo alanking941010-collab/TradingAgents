@@ -7,7 +7,6 @@ import json
 import pytest
 
 from tests.test_options_phase12_replay import _insert_review_day
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
 
 
 def test_option_strategy_report_pipeline_builds_markdown_with_auditable_sections(shfe_options_db):

@@ -7,8 +7,6 @@ import sqlite3
 
 import pytest
 
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
-
 
 def _set_symmetric_butterfly_prices(db_path):
     """Make fixture prices coherent for debit butterflies around ATM."""

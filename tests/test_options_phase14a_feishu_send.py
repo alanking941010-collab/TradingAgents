@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 
 from tests.test_options_phase12_replay import _insert_review_day
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
 
 
 def _build_delivery_payload(shfe_options_db):

@@ -7,7 +7,6 @@ import os
 import subprocess
 import sys
 
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
 from tests.test_options_phase17_strategy_selector import _install_selector_fixture
 
 

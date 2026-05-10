@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
 from tests.test_options_phase9_execution_liquidity import _install_akshare_bid_ask_snapshot
 
 

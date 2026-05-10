@@ -7,7 +7,6 @@ import sqlite3
 
 import pytest
 
-from tests.test_options_phase5_strategy_structurer import shfe_options_db  # noqa: F401
 from tests.test_options_phase12_replay import _insert_review_day
 
 

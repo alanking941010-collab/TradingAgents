@@ -6,8 +6,6 @@ import json
 
 import pytest
 
-from tests.test_options_analytics_core import shfe_options_db  # noqa: F401
-
 
 def test_analyze_option_chain_adds_vol_surface_summary(shfe_options_db):
     from tradingagents.options.analytics import analyze_option_chain

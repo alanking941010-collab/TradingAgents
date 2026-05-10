@@ -307,6 +307,7 @@ the original graph:
 - Phase 20B cleanup replaces the old 3%/97%-103% moneyness skew proxy with true nearest-expiry 25-delta skew: `skew_25d` is 25Δ put IV minus 25Δ call IV using Black-76 delta interpolation when bracketed, while moneyness bucket risk-reversal remains exposed separately as a legacy diagnostic proxy.
 - Phase 20C cleanup tightens bid/ask validity: crossed/nonpositive quotes are preserved as raw bid/ask but excluded from execution pricing, credit is marked `indicative` rather than executable unless every leg has valid bid/ask, and reports expose `credit_quote_status` plus indicative credit fields.
 - Phase 20D cleanup makes replay chronology explicit: review dates are sorted ascending before marking, review dates before entry are rejected, and replay payloads expose input vs resolved review-date sequences to make final PnL and drawdown auditable.
+- Phase 20E maintainability cleanup centralizes the shared `shfe_options_db` SQLite fixture in `tests/conftest.py`, removes cross-test fixture imports that caused Ruff fixture-shadowing noise, and adds an options-only Ruff gate for `tests/conftest.py`, `tests/test_options_*.py`, and `scripts/build_option_research_pack.py`.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -328,6 +329,8 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 
 ```bash
 cd /mnt/e/cautious_twinkle/projects/TradingAgents
+ruff check tests/conftest.py tests/test_options_*.py scripts/build_option_research_pack.py
+.venv/bin/python -m pytest tests/test_options_phase20e_test_hygiene.py -q
 .venv/bin/python -m pytest tests/test_options_phase19c_research_pack_delivery.py tests/test_options_analyst_integration.py -q
 .venv/bin/python -m pytest tests/test_options_phase19b_research_pack_cli.py tests/test_options_phase19a_research_pack.py -q
 .venv/bin/python -m pytest tests/test_options_phase19a_research_pack.py tests/test_options_analyst_integration.py -q
