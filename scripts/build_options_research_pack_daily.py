@@ -97,6 +97,7 @@ def _summary(workflow: dict) -> dict:
         "stdout_mode": "summary-json",
         "output_dir": workflow["output_dir"],
         "output_markdown": workflow["output_markdown"],
+        "output_docx": workflow["output_docx"],
         "artifact_index": workflow["artifact_index"],
         "runs": workflow["runs"],
         "side_effect_free_note": "This script writes artifacts and prints stdout only; it does not send Feishu messages or orders.",

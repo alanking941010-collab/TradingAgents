@@ -233,10 +233,11 @@ python scripts/build_option_research_pack.py CU \
   --output-dir "$TRADINGAGENTS_OPTIONS_OUTPUT_ROOT/research_packs"
 ```
 
-The CLI always writes three local artifacts:
+The CLI always writes four local artifacts:
 
 - `*_research_pack.json` — full audit pack;
 - `*_research_pack.md` — Markdown handoff;
+- `*_research_pack.docx` — Word report for formal review/archive;
 - `*_feishu_payload.json` — dry-run Feishu payload.
 
 `--stdout summary-json` prints a compact artifact summary, `--stdout markdown`
@@ -264,7 +265,7 @@ tradingagents/options/research_pack_workflow.py
 scripts/build_options_research_pack_daily.py
 ```
 
-`build_daily_options_research_pack_workflow(...)` builds one or more per-symbol research packs, writes JSON/Markdown/dry-run Feishu-payload artifacts for each symbol, writes a combined Markdown handoff and index JSON, and records per-symbol success/failure rows. The default symbol set is `CU/AU/AG/AL`; pass repeated `--symbol` values to customize. The workflow is side-effect-free: it writes files and prints stdout only, so actual Feishu delivery still requires Hermes/Gateway to deliver non-empty stdout.
+`build_daily_options_research_pack_workflow(...)` builds one or more per-symbol research packs, writes JSON/Markdown/DOCX/dry-run Feishu-payload artifacts for each symbol, writes a combined Markdown handoff, combined DOCX report, and index JSON, and records per-symbol success/failure rows. The default symbol set is `CU/AU/AG/AL`; pass repeated `--symbol` values to customize. The workflow is side-effect-free: it writes files and prints stdout only, so actual Feishu delivery still requires Hermes/Gateway to deliver non-empty stdout.
 
 Example batch/no-agent handoff command:
 
@@ -335,6 +336,7 @@ the original graph:
 - Phase 20F maintainability cleanup adds runtime TypedDict schema validators for core options payloads, introduces `OptionAnalysisContext` caching for shared analytics/strategy construction across selection/report/research-pack workflows, makes options CLI artifact roots configurable through `TRADINGAGENTS_OPTIONS_OUTPUT_ROOT` and per-kind env vars, centralizes sanitized subprocess helpers, and documents the remaining hardcoded-path audit.
 - Phase 20G maintainability cleanup centralizes Alan local data warehouse env vars/default paths in `tradingagents/dataflows/local_paths.py` so options and business-data loaders share one source of truth while preserving env overrides and read-only SQLite access.
 - Phase 21 operational workflow adds `tradingagents/options/research_pack_workflow.py` and `scripts/build_options_research_pack_daily.py` for multi-symbol daily research-pack generation, per-symbol artifacts, combined Markdown stdout for Hermes no-agent delivery, and a side-effect-free cron-spec handoff.
+- Phase 22A DOCX export adds `tradingagents/options/docx_report.py` so single-symbol and daily/batch research-pack workflows write Word `.docx` reports alongside Markdown/JSON artifacts without requiring Pandoc or python-docx.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -356,8 +358,8 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 
 ```bash
 cd /mnt/e/cautious_twinkle/projects/TradingAgents
-ruff check tests/conftest.py tests/test_options_*.py tests/test_analyze_options_script.py tests/test_alan_business_db_dataflow.py scripts/analyze_options.py scripts/deliver_option_strategy_report.py scripts/build_option_research_pack.py scripts/build_options_research_pack_daily.py scripts/options_cli_common.py tradingagents/dataflows/local_paths.py tradingagents/dataflows/alan_business_db.py tradingagents/options/data_loader.py tradingagents/options/context.py tradingagents/options/schemas.py tradingagents/options/research_pack_workflow.py tradingagents/options/strategies.py tradingagents/options/selector.py tradingagents/options/research_pack.py tradingagents/options/reports.py tradingagents/options/scenarios.py
-.venv/bin/python -m pytest tests/test_options_phase21_daily_research_pack_workflow.py tests/test_options_phase19a_research_pack.py tests/test_options_phase19b_research_pack_cli.py tests/test_options_phase19c_research_pack_delivery.py -q
+ruff check tests/conftest.py tests/test_options_*.py tests/test_analyze_options_script.py tests/test_alan_business_db_dataflow.py scripts/analyze_options.py scripts/deliver_option_strategy_report.py scripts/build_option_research_pack.py scripts/build_options_research_pack_daily.py scripts/options_cli_common.py tradingagents/dataflows/local_paths.py tradingagents/dataflows/alan_business_db.py tradingagents/options/data_loader.py tradingagents/options/context.py tradingagents/options/schemas.py tradingagents/options/docx_report.py tradingagents/options/research_pack_workflow.py tradingagents/options/strategies.py tradingagents/options/selector.py tradingagents/options/research_pack.py tradingagents/options/reports.py tradingagents/options/scenarios.py
+.venv/bin/python -m pytest tests/test_options_phase22a_docx_reports.py tests/test_options_phase21_daily_research_pack_workflow.py tests/test_options_phase19b_research_pack_cli.py -q
 .venv/bin/python -m pytest tests/test_options_phase20e_test_hygiene.py -q
 .venv/bin/python -m pytest tests/test_options_phase19c_research_pack_delivery.py tests/test_options_analyst_integration.py -q
 .venv/bin/python -m pytest tests/test_options_phase19b_research_pack_cli.py tests/test_options_phase19a_research_pack.py -q

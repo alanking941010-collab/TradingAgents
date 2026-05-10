@@ -18,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.options_cli_common import resolve_output_dir  # noqa: E402
+from tradingagents.options.docx_report import write_docx_report  # noqa: E402
 from tradingagents.options.research_pack import (  # noqa: E402
     build_option_research_pack,
     build_option_research_pack_hermes_cron_spec,
@@ -72,11 +73,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _artifact_paths(output_dir: Path, pack: dict[str, Any]) -> tuple[Path, Path, Path]:
+def _artifact_paths(output_dir: Path, pack: dict[str, Any]) -> tuple[Path, Path, Path, Path]:
     stem = f"{_safe_part(pack['product'])}_{_safe_part(pack['trade_date'])}_{_safe_part(pack['selected_strategy'] if pack.get('selection_mode') == 'explicit_strategy_override' else pack.get('selection_mode'))}"
     return (
         output_dir / f"{stem}_research_pack.json",
         output_dir / f"{stem}_research_pack.md",
+        output_dir / f"{stem}_research_pack.docx",
         output_dir / f"{stem}_feishu_payload.json",
     )
 
@@ -99,11 +101,12 @@ def main(argv: list[str] | None = None) -> int:
 
     output_dir = resolve_output_dir(args.output_dir, kind="research_packs")
     output_dir.mkdir(parents=True, exist_ok=True)
-    pack_path, markdown_path, payload_path = _artifact_paths(output_dir, pack)
+    pack_path, markdown_path, docx_path, payload_path = _artifact_paths(output_dir, pack)
 
     payload = pack["payloads"]["feishu_delivery_payload"]
     pack_path.write_text(json.dumps(pack, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     markdown_path.write_text(pack["markdown"], encoding="utf-8")
+    write_docx_report(pack["markdown"], docx_path)
     payload_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
 
     summary = {
@@ -120,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         "stdout_mode": args.stdout,
         "output_pack": str(pack_path),
         "output_markdown": str(markdown_path),
+        "output_docx": str(docx_path),
         "output_payload": str(payload_path),
         "side_effect_free_note": "This script writes artifacts only; it does not send Feishu messages or orders.",
     }
@@ -147,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
         spec["current_run_artifacts"] = {
             "output_pack": str(pack_path),
             "output_markdown": str(markdown_path),
+            "output_docx": str(docx_path),
             "output_payload": str(payload_path),
         }
         print(json.dumps(spec, ensure_ascii=False, indent=2, default=str))

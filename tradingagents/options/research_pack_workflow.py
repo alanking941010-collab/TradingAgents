@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from tradingagents.options.docx_report import write_docx_report
 from tradingagents.options.research_pack import build_option_research_pack
 
 DEFAULT_DAILY_SYMBOLS = ("CU", "AU", "AG", "AL")
@@ -42,7 +43,7 @@ def _command_string(args: list[str]) -> str:
     return " ".join(shlex.quote(str(arg)) for arg in args)
 
 
-def _artifact_paths(output_dir: Path, pack: dict[str, Any]) -> tuple[Path, Path, Path]:
+def _artifact_paths(output_dir: Path, pack: dict[str, Any]) -> tuple[Path, Path, Path, Path]:
     stem = (
         f"{_safe_part(pack['product'])}_"
         f"{_safe_part(pack['trade_date'])}_"
@@ -51,6 +52,7 @@ def _artifact_paths(output_dir: Path, pack: dict[str, Any]) -> tuple[Path, Path,
     return (
         output_dir / f"{stem}_research_pack.json",
         output_dir / f"{stem}_research_pack.md",
+        output_dir / f"{stem}_research_pack.docx",
         output_dir / f"{stem}_feishu_payload.json",
     )
 
@@ -127,6 +129,7 @@ def build_daily_options_research_pack_workflow(
     pack_markdowns: list[str] = []
     stem = _daily_stem(trade_date, resolved_symbols)
     combined_markdown_path = outdir / f"{stem}_daily_research_pack.md"
+    combined_docx_path = outdir / f"{stem}_daily_research_pack.docx"
     index_path = outdir / f"{stem}_daily_research_pack_index.json"
 
     workflow: dict[str, Any] = {
@@ -142,6 +145,7 @@ def build_daily_options_research_pack_workflow(
         "failure_count": 0,
         "output_dir": str(outdir),
         "output_markdown": _relative(combined_markdown_path, outdir),
+        "output_docx": _relative(combined_docx_path, outdir),
         "artifact_index": _relative(index_path, outdir),
     }
 
@@ -160,10 +164,11 @@ def build_daily_options_research_pack_workflow(
                 max_bid_ask_spread_pct=max_bid_ask_spread_pct,
                 delivery_target=delivery_target,
             )
-            pack_path, markdown_path, payload_path = _artifact_paths(outdir, pack)
+            pack_path, markdown_path, docx_path, payload_path = _artifact_paths(outdir, pack)
             payload = pack["payloads"]["feishu_delivery_payload"]
             pack_path.write_text(json.dumps(pack, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
             markdown_path.write_text(pack["markdown"], encoding="utf-8")
+            write_docx_report(pack["markdown"], docx_path)
             payload_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
             runs.append(
                 {
@@ -179,6 +184,7 @@ def build_daily_options_research_pack_workflow(
                     "dry_run": payload["dry_run"],
                     "output_pack": _relative(pack_path, outdir),
                     "output_markdown": _relative(markdown_path, outdir),
+                    "output_docx": _relative(docx_path, outdir),
                     "output_payload": _relative(payload_path, outdir),
                 }
             )
@@ -199,6 +205,7 @@ def build_daily_options_research_pack_workflow(
     workflow["failure_count"] = sum(1 for run in runs if run["status"] != "success")
     workflow["combined_markdown"] = _render_combined_markdown(workflow, pack_markdowns)
     combined_markdown_path.write_text(workflow["combined_markdown"], encoding="utf-8")
+    write_docx_report(workflow["combined_markdown"], combined_docx_path)
     index_payload = {key: value for key, value in workflow.items() if key != "combined_markdown"}
     index_path.write_text(json.dumps(index_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     return workflow
@@ -262,8 +269,10 @@ def build_daily_options_research_pack_hermes_cron_spec(
             "output_dir": output_dir,
             "writes_per_symbol_pack_json": True,
             "writes_per_symbol_markdown": True,
+            "writes_per_symbol_docx": True,
             "writes_per_symbol_feishu_payload_json": True,
             "writes_combined_markdown": True,
+            "writes_combined_docx": True,
             "writes_index_json": True,
         },
         "side_effect_free": True,
