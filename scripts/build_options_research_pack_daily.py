@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""Build daily/batch SHFE options research packs for Hermes handoff.
+
+The script is side-effect-free: it writes local artifacts and can print combined
+Markdown for Hermes no-agent cron delivery, but it never sends messages or orders.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.options_cli_common import resolve_output_dir  # noqa: E402
+from tradingagents.options.research_pack_workflow import (  # noqa: E402
+    DEFAULT_DAILY_CRON_SCHEDULE,
+    DEFAULT_DAILY_SYMBOLS,
+    build_daily_options_research_pack_hermes_cron_spec,
+    build_daily_options_research_pack_workflow,
+)
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Build side-effect-free daily/batch SHFE option research packs with combined Markdown handoff."
+    )
+    parser.add_argument(
+        "--symbol",
+        dest="symbols",
+        action="append",
+        default=None,
+        help="SHFE option product or alias. Repeat for multiple symbols. Defaults to CU/AU/AG/AL.",
+    )
+    parser.add_argument("--date", dest="trade_date", help="Trade date, e.g. 2026-05-01; omit for latest")
+    parser.add_argument("--expiry", help="Optional maturity date, e.g. 20260625")
+    parser.add_argument("--strategy-type", default=None, help="Optional explicit strategy override for every symbol")
+    parser.add_argument("--directional-bias", default="neutral", help="Selector directional bias")
+    parser.add_argument("--volatility-view", default=None, help="Volatility regime view, e.g. range_bound_high_iv")
+    parser.add_argument(
+        "--review-date",
+        dest="review_dates",
+        action="append",
+        default=None,
+        help="Replay review date; repeat for multiple dates.",
+    )
+    parser.add_argument("--risk-budget-cash", type=float, default=None, help="Optional CNY risk budget")
+    parser.add_argument(
+        "--min-credit-pct-of-wing-width",
+        type=float,
+        default=None,
+        help="Optional credit-quality filter for short iron condor",
+    )
+    parser.add_argument(
+        "--max-bid-ask-spread-pct",
+        type=float,
+        default=None,
+        help="Optional bid/ask quality filter",
+    )
+    parser.add_argument("--target", dest="delivery_target", default="feishu", help="Hermes delivery target label")
+    parser.add_argument(
+        "--cron-schedule",
+        default=DEFAULT_DAILY_CRON_SCHEDULE,
+        help="Schedule used when printing a Hermes no-agent cron spec",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Artifact directory; defaults to TRADINGAGENTS_OPTIONS_RESEARCH_PACKS_OUTPUT_DIR or TRADINGAGENTS_OPTIONS_OUTPUT_ROOT/research_packs",
+    )
+    parser.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="Abort on the first symbol failure instead of recording it and continuing.",
+    )
+    parser.add_argument(
+        "--stdout",
+        choices=["summary-json", "markdown", "hermes-cron-spec", "none"],
+        default="summary-json",
+        help="Print JSON summary, combined Markdown, Hermes cron spec, or nothing.",
+    )
+    return parser
+
+
+def _summary(workflow: dict) -> dict:
+    return {
+        "workflow_type": workflow["workflow_type"],
+        "symbols_requested": workflow["symbols_requested"],
+        "trade_date": workflow.get("trade_date"),
+        "success_count": workflow["success_count"],
+        "failure_count": workflow["failure_count"],
+        "target": workflow.get("target"),
+        "stdout_mode": "summary-json",
+        "output_dir": workflow["output_dir"],
+        "output_markdown": workflow["output_markdown"],
+        "artifact_index": workflow["artifact_index"],
+        "runs": workflow["runs"],
+        "side_effect_free_note": "This script writes artifacts and prints stdout only; it does not send Feishu messages or orders.",
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_arg_parser().parse_args(argv)
+    symbols = args.symbols or list(DEFAULT_DAILY_SYMBOLS)
+    output_dir = resolve_output_dir(args.output_dir, kind="research_packs")
+
+    if args.stdout == "hermes-cron-spec":
+        spec = build_daily_options_research_pack_hermes_cron_spec(
+            symbols=symbols,
+            trade_date=args.trade_date,
+            expiry=args.expiry,
+            strategy_type=args.strategy_type,
+            directional_bias=args.directional_bias,
+            volatility_view=args.volatility_view,
+            review_dates=args.review_dates,
+            risk_budget_cash=args.risk_budget_cash,
+            min_credit_pct_of_wing_width=args.min_credit_pct_of_wing_width,
+            max_bid_ask_spread_pct=args.max_bid_ask_spread_pct,
+            target=args.delivery_target,
+            schedule=args.cron_schedule,
+            output_dir=str(output_dir),
+        )
+        print(json.dumps(spec, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    workflow = build_daily_options_research_pack_workflow(
+        symbols=symbols,
+        trade_date=args.trade_date,
+        expiry=args.expiry,
+        strategy_type=args.strategy_type,
+        directional_bias=args.directional_bias,
+        volatility_view=args.volatility_view,
+        review_dates=args.review_dates,
+        risk_budget_cash=args.risk_budget_cash,
+        min_credit_pct_of_wing_width=args.min_credit_pct_of_wing_width,
+        max_bid_ask_spread_pct=args.max_bid_ask_spread_pct,
+        delivery_target=args.delivery_target,
+        output_dir=output_dir,
+        continue_on_error=not args.fail_fast,
+    )
+
+    if args.stdout == "summary-json":
+        print(json.dumps(_summary(workflow), ensure_ascii=False, indent=2, default=str))
+    elif args.stdout == "markdown":
+        print(workflow["combined_markdown"], end="")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
