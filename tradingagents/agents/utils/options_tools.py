@@ -49,6 +49,184 @@ def _wall_to_dict(wall) -> dict[str, float]:
     }
 
 
+def _normalize_detail_level(detail_level: str | None) -> str:
+    value = (detail_level or "compact").strip().lower()
+    if value not in {"compact", "full"}:
+        raise ValueError("detail_level must be 'compact' or 'full'")
+    return value
+
+
+def _compact_strategy(candidate: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not candidate:
+        return None
+    keys = (
+        "strategy_type",
+        "decision",
+        "expiry",
+        "underlying_price",
+        "max_loss_cash",
+        "max_profit_cash",
+        "net_premium_cash",
+        "margin_required_cash",
+        "risk_budget_cash",
+        "risk_budget_status",
+        "risk_budget_utilization",
+        "execution_liquidity",
+        "credit_execution",
+        "no_trade_reasons",
+    )
+    return {key: candidate.get(key) for key in keys if key in candidate}
+
+
+def _compact_ranked_candidate(row: dict[str, Any]) -> dict[str, Any]:
+    compact = {
+        "strategy_type": row.get("strategy_type"),
+        "score": row.get("score"),
+        "decision": row.get("decision"),
+        "ranking_reasons": row.get("ranking_reasons", [])[:6],
+        "no_trade_reasons": row.get("no_trade_reasons", [])[:6],
+        "risk_budget_status": row.get("risk_budget_status"),
+        "margin_required_cash": row.get("margin_required_cash"),
+        "max_loss_cash": row.get("max_loss_cash"),
+        "execution_liquidity_grade": row.get("execution_liquidity_grade"),
+    }
+    if row.get("credit_execution"):
+        compact["credit_execution"] = row["credit_execution"]
+    return compact
+
+
+def _compact_portfolio_summary(portfolio: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not portfolio:
+        return None
+    keep = (
+        "summary_type",
+        "risk_budget_cash",
+        "candidate_count",
+        "tradable_candidate_count",
+        "watch_candidate_count",
+        "no_trade_count",
+        "selected_strategy",
+        "all_candidate_margin_cash",
+        "all_candidate_max_loss_cash",
+        "highest_margin_strategy",
+        "lowest_max_loss_strategy",
+        "comparison_table",
+    )
+    return {key: portfolio.get(key) for key in keep if key in portfolio}
+
+
+def _compact_selection_payload(selection: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "detail_level": "compact",
+        "selection_type": selection.get("selection_type"),
+        "product": selection.get("product"),
+        "trade_date": selection.get("trade_date"),
+        "underlying_symbol": selection.get("underlying_symbol"),
+        "underlying_price": selection.get("underlying_price"),
+        "expiry": selection.get("expiry"),
+        "price_basis": selection.get("price_basis"),
+        "risk_free_rate": selection.get("risk_free_rate"),
+        "directional_bias": selection.get("directional_bias"),
+        "volatility_view": selection.get("volatility_view"),
+        "surface_regime": selection.get("surface_regime"),
+        "selected_strategy": selection.get("selected_strategy"),
+        "ranked_candidates": [_compact_ranked_candidate(row) for row in selection.get("ranked_candidates", [])],
+        "portfolio_summary": _compact_portfolio_summary(selection.get("portfolio_summary")),
+        "errors": selection.get("errors", []),
+        "assumptions": {
+            **selection.get("assumptions", {}),
+            "detail_level": "compact",
+            "full_detail_hint": "Call the tool with detail_level='full' for full candidate payloads and Markdown.",
+        },
+    }
+    return {key: value for key, value in payload.items() if value is not None}
+
+
+def _compact_scenarios_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    compact_strategy = _compact_strategy(payload.get("strategy")) or {
+        "strategy_type": (payload.get("strategy") or {}).get("strategy_type")
+    }
+    scenarios = []
+    for row in payload.get("scenarios", []):
+        scenarios.append({key: value for key, value in row.items() if key != "leg_values"})
+    return {
+        "detail_level": "compact",
+        "strategy": compact_strategy,
+        "cash_risk": payload.get("cash_risk"),
+        "margin": payload.get("margin"),
+        "risk_budget": payload.get("risk_budget"),
+        "scenario_grid": payload.get("scenario_grid"),
+        "scenarios": scenarios,
+        "summary": payload.get("summary"),
+        "assumptions": {
+            **payload.get("assumptions", {}),
+            "detail_level": "compact",
+            "full_detail_hint": "Call the tool with detail_level='full' for per-leg scenario values and the full strategy payload.",
+        },
+    }
+
+
+def _compact_report_payload(report: dict[str, Any]) -> dict[str, Any]:
+    payloads = report.get("payloads", {})
+    compact_payloads = {
+        "volatility_snapshot": payloads.get("volatility_snapshot"),
+        "strategy": _compact_strategy(payloads.get("strategy")),
+        "scenario_summary": payloads.get("scenario_summary"),
+        "replay_summary": payloads.get("replay_summary"),
+        "replay_performance_summary": payloads.get("replay_performance_summary"),
+    }
+    compact = {
+        "detail_level": "compact",
+        "report_type": report.get("report_type"),
+        "title": report.get("title"),
+        "product": report.get("product"),
+        "strategy_type": report.get("strategy_type"),
+        "trade_date": report.get("trade_date"),
+        "expiry": report.get("expiry"),
+        "summary": report.get("summary"),
+        "payloads": {key: value for key, value in compact_payloads.items() if value is not None},
+        "markdown": report.get("markdown"),
+        "assumptions": {
+            **report.get("assumptions", {}),
+            "detail_level": "compact",
+            "full_detail_hint": "Call the tool with detail_level='full' for full report payloads.",
+        },
+    }
+    return {key: value for key, value in compact.items() if value is not None}
+
+
+def _compact_research_pack_payload(pack: dict[str, Any]) -> dict[str, Any]:
+    payloads = pack.get("payloads", {})
+    delivery = payloads.get("feishu_delivery_payload") or {}
+    compact_payloads = {
+        "selection": _compact_selection_payload(payloads["selection"]) if payloads.get("selection") else None,
+        "portfolio_summary": _compact_portfolio_summary(payloads.get("portfolio_summary")),
+        "selected_strategy_report": _compact_report_payload(payloads["selected_strategy_report"]) if payloads.get("selected_strategy_report") else None,
+        "feishu_delivery_payload": {
+            key: delivery.get(key)
+            for key in ("channel", "target", "dry_run", "title", "delivery_hint")
+            if key in delivery
+        },
+    }
+    compact = {
+        "detail_level": "compact",
+        "pack_type": pack.get("pack_type"),
+        "product": pack.get("product"),
+        "trade_date": pack.get("trade_date"),
+        "expiry": pack.get("expiry"),
+        "selected_strategy": pack.get("selected_strategy"),
+        "selection_mode": pack.get("selection_mode"),
+        "summary": pack.get("summary"),
+        "payloads": {key: value for key, value in compact_payloads.items() if value is not None},
+        "assumptions": {
+            **pack.get("assumptions", {}),
+            "detail_level": "compact",
+            "full_detail_hint": "Call the tool with detail_level='full' for complete JSON, Markdown, and delivery message payloads.",
+        },
+    }
+    return {key: value for key, value in compact.items() if value is not None}
+
+
 def _enriched_option_to_dict(row: EnrichedOptionQuote) -> dict[str, Any]:
     greeks = row.greeks
     return {
@@ -261,23 +439,25 @@ def get_option_strategy_selection(
     min_credit_pct_of_wing_width: Annotated[float | None, "Optional credit filter for short iron condor; executable credit divided by wing width must be at least this ratio"] = None,
     max_bid_ask_spread_pct: Annotated[float | None, "Optional bid/ask filter; maximum leg bid/ask spread percentage must be at or below this ratio"] = None,
     constraint_mode: Annotated[str, "Constraint handling: strict turns liquidity/risk-budget/credit filter failures into no_trade; relaxed keeps them as review candidates with warnings"] = "strict",
+    detail_level: Annotated[str, "Payload detail level: compact for LLM-facing summaries, full for audit/debug JSON"] = "compact",
 ) -> str:
-    """Return deterministic option strategy ranking from vol surface, execution, margin, and risk budget."""
-    return json.dumps(
-        build_option_strategy_selection(
-            symbol,
-            trade_date=trade_date,
-            expiry=expiry,
-            directional_bias=directional_bias,
-            volatility_view=volatility_view,
-            risk_budget_cash=risk_budget_cash,
-            min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
-            max_bid_ask_spread_pct=max_bid_ask_spread_pct,
-            constraint_mode=constraint_mode,
-        ),
-        ensure_ascii=False,
-        default=str,
+    """Return deterministic option strategy ranking; compact by default for LLM agents."""
+    selection = build_option_strategy_selection(
+        symbol,
+        trade_date=trade_date,
+        expiry=expiry,
+        directional_bias=directional_bias,
+        volatility_view=volatility_view,
+        risk_budget_cash=risk_budget_cash,
+        min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
+        max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+        constraint_mode=constraint_mode,
     )
+    level = _normalize_detail_level(detail_level)
+    payload = selection if level == "full" else _compact_selection_payload(selection)
+    if level == "full":
+        payload = {"detail_level": "full", **payload}
+    return json.dumps(payload, ensure_ascii=False, default=str)
 
 
 @tool
@@ -290,22 +470,25 @@ def get_option_strategy_scenarios(
     iv_shocks: Annotated[list[float] | None, "Absolute IV shocks, e.g. [-0.02, 0, 0.02]"] = None,
     days_forward: Annotated[list[int] | None, "Forward days, e.g. [0, 5, 20]"] = None,
     risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY for scenario loss utilization"] = None,
+    detail_level: Annotated[str, "Payload detail level: compact omits per-leg values and uses a smaller default grid; full keeps audit/debug detail"] = "compact",
 ) -> str:
-    """Return option strategy scenario PnL matrix JSON across price/IV/time shocks with cash PnL."""
-    return json.dumps(
-        build_option_strategy_scenarios(
-            symbol,
-            strategy_type,
-            trade_date=trade_date,
-            expiry=expiry,
-            price_shocks=price_shocks or (-0.05, -0.03, -0.01, 0.0, 0.01, 0.03, 0.05),
-            iv_shocks=iv_shocks or (-0.05, -0.02, 0.0, 0.02, 0.05),
-            days_forward=days_forward or (0, 1, 5, 20),
-            risk_budget_cash=risk_budget_cash,
-        ),
-        ensure_ascii=False,
-        default=str,
+    """Return option strategy scenario PnL matrix; compact by default for LLM agents."""
+    level = _normalize_detail_level(detail_level)
+    payload = build_option_strategy_scenarios(
+        symbol,
+        strategy_type,
+        trade_date=trade_date,
+        expiry=expiry,
+        price_shocks=price_shocks or ((-0.05, -0.03, -0.01, 0.0, 0.01, 0.03, 0.05) if level == "full" else (-0.03, 0.0, 0.03)),
+        iv_shocks=iv_shocks or ((-0.05, -0.02, 0.0, 0.02, 0.05) if level == "full" else (-0.02, 0.0, 0.02)),
+        days_forward=days_forward or ((0, 1, 5, 20) if level == "full" else (0, 5, 20)),
+        risk_budget_cash=risk_budget_cash,
     )
+    if level == "full":
+        payload = {"detail_level": "full", **payload}
+    else:
+        payload = _compact_scenarios_payload(payload)
+    return json.dumps(payload, ensure_ascii=False, default=str)
 
 
 @tool
@@ -335,25 +518,25 @@ def get_option_strategy_replay(
 @tool
 def get_option_strategy_report(
     symbol: Annotated[str, "SHFE option product or alias, e.g. CU, copper, 铜, AU"],
-    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_strangle, long_call_butterfly, long_put_butterfly, short_iron_condor"],
+    strategy_type: Annotated[str, "Strategy type, e.g. bull_call_spread, bear_put_spread, long_straddle, long_call_butterfly, long_put_butterfly, short_iron_condor"],
     trade_date: Annotated[str | None, "Trade date in yyyy-mm-dd or yyyymmdd format"] = None,
     expiry: Annotated[str | None, "Optional option maturity date in yyyymmdd format"] = None,
     review_dates: Annotated[list[str] | None, "Optional historical review dates for replay section"] = None,
     risk_budget_cash: Annotated[float | None, "Optional risk budget in CNY"] = None,
+    detail_level: Annotated[str, "Payload detail level: compact for LLM-facing summaries, full for audit/debug JSON"] = "compact",
 ) -> str:
-    """Return a Feishu-ready Markdown report pipeline JSON for one structured option strategy."""
-    return json.dumps(
-        build_option_strategy_report(
-            symbol,
-            strategy_type=strategy_type,
-            trade_date=trade_date,
-            expiry=expiry,
-            review_dates=review_dates,
-            risk_budget_cash=risk_budget_cash,
-        ),
-        ensure_ascii=False,
-        default=str,
+    """Return a Feishu-ready option report; compact by default for LLM agents."""
+    report = build_option_strategy_report(
+        symbol,
+        strategy_type=strategy_type,
+        trade_date=trade_date,
+        expiry=expiry,
+        review_dates=review_dates,
+        risk_budget_cash=risk_budget_cash,
     )
+    level = _normalize_detail_level(detail_level)
+    payload = {"detail_level": "full", **report} if level == "full" else _compact_report_payload(report)
+    return json.dumps(payload, ensure_ascii=False, default=str)
 
 
 @tool
@@ -370,26 +553,26 @@ def get_option_research_pack(
     max_bid_ask_spread_pct: Annotated[float | None, "Optional bid/ask filter; maximum leg bid/ask spread percentage must be at or below this ratio"] = None,
     constraint_mode: Annotated[str, "Constraint handling for selector_auto: strict or relaxed"] = "strict",
     delivery_target: Annotated[str | None, "Optional Feishu/Hermes target for dry-run delivery payload"] = None,
+    detail_level: Annotated[str, "Payload detail level: compact for LLM-facing summaries, full for complete artifacts/debug JSON"] = "compact",
 ) -> str:
-    """Return one side-effect-free research pack: selection, portfolio summary, selected report, replay, and Feishu payload."""
-    return json.dumps(
-        build_option_research_pack(
-            symbol,
-            trade_date=trade_date,
-            expiry=expiry,
-            strategy_type=strategy_type,
-            directional_bias=directional_bias,
-            volatility_view=volatility_view,
-            review_dates=review_dates,
-            risk_budget_cash=risk_budget_cash,
-            min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
-            max_bid_ask_spread_pct=max_bid_ask_spread_pct,
-            constraint_mode=constraint_mode,
-            delivery_target=delivery_target,
-        ),
-        ensure_ascii=False,
-        default=str,
+    """Return one side-effect-free research pack; compact by default for LLM agents."""
+    pack = build_option_research_pack(
+        symbol,
+        trade_date=trade_date,
+        expiry=expiry,
+        strategy_type=strategy_type,
+        directional_bias=directional_bias,
+        volatility_view=volatility_view,
+        review_dates=review_dates,
+        risk_budget_cash=risk_budget_cash,
+        min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
+        max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+        constraint_mode=constraint_mode,
+        delivery_target=delivery_target,
     )
+    level = _normalize_detail_level(detail_level)
+    payload = {"detail_level": "full", **pack} if level == "full" else _compact_research_pack_payload(pack)
+    return json.dumps(payload, ensure_ascii=False, default=str)
 
 
 @tool

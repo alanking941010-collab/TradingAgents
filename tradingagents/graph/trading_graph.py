@@ -39,16 +39,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_global_news
 )
 from tradingagents.agents.utils.options_tools import (
-    get_option_analytics_json,
-    get_option_analytics_report,
-    get_option_feishu_delivery_payload,
-    get_option_hermes_cron_delivery_spec,
     get_option_research_pack,
-    get_option_research_pack_hermes_cron_spec,
-    get_option_strategy_candidate,
-    get_option_strategy_replay,
-    get_option_strategy_report,
-    get_option_strategy_scenarios,
     get_option_strategy_selection,
     get_option_trade_context,
 )
@@ -175,19 +166,12 @@ class TradingAgentsGraph:
                     get_stock_data,
                     # Technical indicators
                     get_indicators,
-                    # SHFE options analytics tools (used when analyst prompt enables options mode)
+                    # Compact SHFE options analytics tools for live analyst graph.
+                    # Heavy audit/report/scenario tools stay available as direct utilities but
+                    # are intentionally not exposed here to reduce full-graph timeout risk.
                     get_option_trade_context,
-                    get_option_analytics_report,
-                    get_option_analytics_json,
-                    get_option_strategy_candidate,
-                    get_option_strategy_scenarios,
-                    get_option_strategy_replay,
-                    get_option_strategy_report,
                     get_option_strategy_selection,
                     get_option_research_pack,
-                    get_option_research_pack_hermes_cron_spec,
-                    get_option_feishu_delivery_payload,
-                    get_option_hermes_cron_delivery_spec,
                 ]
             ),
             "social": ToolNode(
