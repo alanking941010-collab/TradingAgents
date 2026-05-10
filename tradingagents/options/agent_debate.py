@@ -9,11 +9,16 @@ and portfolio-manager reasoning without changing deterministic calculations.
 from __future__ import annotations
 
 import copy
+import inspect
+import json
 import multiprocessing as mp
 import queue
+import re
 import signal
 import threading
+import time
 from collections.abc import Callable, Iterable
+from pathlib import Path
 from typing import Any
 
 AgentDebateProvider = Callable[[dict[str, Any]], dict[str, Any]]
@@ -47,20 +52,126 @@ def _failure_debate(
     final_decision: str,
     section_title: str,
     section_content: str,
+    partial_checkpoint: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    sections = [
+        {
+            "title": section_title,
+            "content": section_content,
+        }
+    ]
+    if partial_checkpoint and partial_checkpoint.get("available"):
+        sections.extend(partial_checkpoint.get("sections") or [])
+    payload = {
         "debate_type": "tradingagents_graph_debate",
         "source": source,
         "status": status,
         "symbol": symbol,
         "trade_date": trade_date,
         "final_decision": final_decision,
-        "sections": [
-            {
-                "title": section_title,
-                "content": section_content,
-            }
-        ],
+        "sections": sections,
+    }
+    if partial_checkpoint is not None:
+        payload["partial_checkpoint"] = partial_checkpoint
+    return payload
+
+
+def _safe_component(value: Any) -> str:
+    text = _text(value) or "unknown"
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", text).strip("_") or "unknown"
+
+
+def _checkpoint_paths(checkpoint_dir: str | Path | None, *, symbol: str | None, trade_date: str | None) -> tuple[Path, Path] | None:
+    if checkpoint_dir is None:
+        return None
+    directory = Path(checkpoint_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    stem = f"{_safe_component(symbol)}_{_safe_component(trade_date)}_agent_debate"
+    return directory / f"{stem}_checkpoint.json", directory / f"{stem}_events.jsonl"
+
+
+def _completed_sections(debate: dict[str, Any]) -> list[str]:
+    return [_text(section.get("title")) for section in debate.get("sections") or [] if _text(section.get("title"))]
+
+
+def write_agent_debate_checkpoint(
+    checkpoint_dir: str | Path | None,
+    *,
+    pack: dict[str, Any],
+    debate: dict[str, Any],
+    progress_event: dict[str, Any] | None = None,
+) -> Path | None:
+    """Persist latest partial live-graph debate state for timeout diagnostics."""
+    paths = _checkpoint_paths(checkpoint_dir, symbol=pack.get("product"), trade_date=pack.get("trade_date"))
+    if paths is None:
+        return None
+    checkpoint_path, events_path = paths
+    event = {
+        "event_index": None,
+        "elapsed_seconds": None,
+        "completed_sections": _completed_sections(debate),
+    }
+    if progress_event:
+        event.update(progress_event)
+    payload = copy.deepcopy(debate)
+    payload.setdefault("status", "partial")
+    payload.setdefault("source", "tradingagents_graph_live_partial")
+    payload.setdefault("symbol", pack.get("product"))
+    payload.setdefault("trade_date", pack.get("trade_date"))
+    payload["checkpoint_path"] = str(checkpoint_path)
+    payload["events_path"] = str(events_path)
+    payload["last_progress_event"] = event
+    payload["completed_sections"] = _completed_sections(payload)
+    checkpoint_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    with events_path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
+    return checkpoint_path
+
+
+def load_agent_debate_checkpoint(
+    checkpoint_dir: str | Path | None,
+    *,
+    symbol: str | None,
+    trade_date: str | None,
+) -> dict[str, Any]:
+    paths = _checkpoint_paths(checkpoint_dir, symbol=symbol, trade_date=trade_date)
+    if paths is None:
+        return {"available": False}
+    checkpoint_path, events_path = paths
+    if not checkpoint_path.exists():
+        return {"available": False, "checkpoint_path": str(checkpoint_path)}
+    payload = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    event_count = 0
+    if events_path.exists():
+        event_count = sum(1 for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip())
+    return {
+        "available": True,
+        "checkpoint_path": str(checkpoint_path),
+        "events_path": str(events_path),
+        "event_count": event_count,
+        "status": payload.get("status"),
+        "source": payload.get("source"),
+        "final_decision": payload.get("final_decision"),
+        "sections": payload.get("sections") or [],
+        "completed_sections": payload.get("completed_sections") or _completed_sections(payload),
+        "last_progress_event": payload.get("last_progress_event"),
+    }
+
+
+def _progress_event_from_state(state: dict[str, Any], *, event_index: int, elapsed_seconds: float, previous_elapsed: float) -> dict[str, Any]:
+    messages = state.get("messages") or []
+    msg = messages[-1] if messages else None
+    tool_calls = getattr(msg, "tool_calls", None) if msg is not None else None
+    content = getattr(msg, "content", "") if msg is not None else ""
+    debate = extract_agent_debate_from_final_state(state, source="tradingagents_graph_live_partial")
+    return {
+        "event_index": event_index,
+        "elapsed_seconds": round(elapsed_seconds, 3),
+        "delta_seconds": round(elapsed_seconds - previous_elapsed, 3),
+        "completed_sections": _completed_sections(debate),
+        "tool_call_names": [tc.get("name") for tc in (tool_calls or [])],
+        "message_type": type(msg).__name__ if msg is not None else None,
+        "message_content_length": len(str(content or "")),
     }
 
 
@@ -124,11 +235,78 @@ def _run_in_subprocess_with_timeout(fn: Callable[[], Any], timeout_seconds: floa
     raise RuntimeError(f"{payload.get('error_type')}: {payload.get('error_message')}")
 
 
+def _run_streaming_graph_with_checkpoints(
+    *,
+    stream_iterable,
+    pack: dict[str, Any],
+    checkpoint_dir: str | Path | None,
+    process_signal: Callable[[str], Any],
+) -> dict[str, Any]:
+    """Consume a LangGraph stream, checkpoint partial debate state, and return final state."""
+    final_state: dict[str, Any] | None = None
+    started = time.monotonic()
+    previous_elapsed = 0.0
+    for event_index, state in enumerate(stream_iterable, start=1):
+        final_state = state
+        elapsed = time.monotonic() - started
+        debate = extract_agent_debate_from_final_state(
+            state,
+            source="tradingagents_graph_live_partial",
+            symbol=pack.get("product"),
+            trade_date=pack.get("trade_date"),
+        )
+        debate["status"] = "partial"
+        progress_event = _progress_event_from_state(
+            state,
+            event_index=event_index,
+            elapsed_seconds=elapsed,
+            previous_elapsed=previous_elapsed,
+        )
+        write_agent_debate_checkpoint(
+            checkpoint_dir,
+            pack=pack,
+            debate=debate,
+            progress_event=progress_event,
+        )
+        previous_elapsed = elapsed
+    if final_state is None:
+        raise RuntimeError("TradingAgentsGraph stream produced no states")
+    decision_text = _text(final_state.get("final_trade_decision"))
+    return {"final_state": final_state, "decision": process_signal(decision_text)}
+
+
+def _runner_accepts_checkpoint_dir(runner: GraphRunner) -> bool:
+    signature = inspect.signature(runner)
+    return "checkpoint_dir" in signature.parameters or any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )
+
+
+def _call_graph_runner(
+    runner: GraphRunner,
+    *,
+    pack: dict[str, Any],
+    config: dict[str, Any],
+    selected_analysts: list[str],
+    checkpoint_dir: str | Path | None,
+) -> dict[str, Any]:
+    kwargs = {
+        "pack": pack,
+        "config": config,
+        "selected_analysts": selected_analysts,
+    }
+    if _runner_accepts_checkpoint_dir(runner):
+        kwargs["checkpoint_dir"] = checkpoint_dir
+    return runner(**kwargs)
+
+
 def _default_graph_runner(
     *,
     pack: dict[str, Any],
     config: dict[str, Any],
     selected_analysts: list[str],
+    checkpoint_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     from tradingagents.graph.trading_graph import TradingAgentsGraph
 
@@ -137,8 +315,25 @@ def _default_graph_runner(
         debug=False,
         config=config,
     )
-    final_state, decision = graph.propagate(pack["product"], pack["trade_date"])
-    return {"final_state": final_state, "decision": decision}
+    if checkpoint_dir is None:
+        final_state, decision = graph.propagate(pack["product"], pack["trade_date"])
+        return {"final_state": final_state, "decision": decision}
+
+    past_context = graph.memory_log.get_past_context(pack["product"])
+    init_state = graph.propagator.create_initial_state(
+        pack["product"],
+        pack["trade_date"],
+        past_context=past_context,
+    )
+    args = graph.propagator.get_graph_args()
+    result = _run_streaming_graph_with_checkpoints(
+        stream_iterable=graph.graph.stream(init_state, **args),
+        pack=pack,
+        checkpoint_dir=checkpoint_dir,
+        process_signal=graph.process_signal,
+    )
+    graph.curr_state = result["final_state"]
+    return result
 
 
 def extract_agent_debate_from_final_state(
@@ -262,6 +457,7 @@ def build_live_agent_debate_provider(
     timeout_seconds: float | int | None = None,
     timeout_fallback: bool = False,
     graph_runner: GraphRunner | None = None,
+    checkpoint_dir: str | Path | None = None,
 ) -> AgentDebateProvider:
     """Build a provider that runs the live TradingAgentsGraph for each pack.
 
@@ -283,10 +479,12 @@ def build_live_agent_debate_provider(
         config.update(resolved_config_overrides)
 
         def _run() -> dict[str, Any]:
-            return resolved_runner(
+            return _call_graph_runner(
+                resolved_runner,
                 pack=pack,
                 config=config,
                 selected_analysts=resolved_analysts,
+                checkpoint_dir=checkpoint_dir,
             )
 
         try:
@@ -297,6 +495,18 @@ def build_live_agent_debate_provider(
         except AgentDebateTimeoutError as exc:
             if not timeout_fallback:
                 raise
+            partial_checkpoint = load_agent_debate_checkpoint(
+                checkpoint_dir,
+                symbol=pack.get("product"),
+                trade_date=pack.get("trade_date"),
+            )
+            partial_note = ""
+            if partial_checkpoint.get("available"):
+                partial_note = (
+                    "\n\n已载入最近一次 partial checkpoint："
+                    f"{partial_checkpoint.get('checkpoint_path')}，"
+                    f"已完成 sections={partial_checkpoint.get('completed_sections')}。"
+                )
             return _failure_debate(
                 status="timeout",
                 source="tradingagents_graph_live_timeout",
@@ -308,11 +518,18 @@ def build_live_agent_debate_provider(
                     f"{exc}\n\n"
                     "根因：完整 TradingAgentsGraph 是同步执行的多节点 LLM/tool 图；"
                     "如果某个节点或工具调用超过预算，原始 graph.invoke 不会先落盘中间产物。"
+                    f"{partial_note}"
                 ),
+                partial_checkpoint=partial_checkpoint,
             )
         except Exception as exc:
             if not timeout_fallback:
                 raise
+            partial_checkpoint = load_agent_debate_checkpoint(
+                checkpoint_dir,
+                symbol=pack.get("product"),
+                trade_date=pack.get("trade_date"),
+            )
             message = (
                 f"TradingAgents full graph live debate 失败：{type(exc).__name__}: {exc}. "
                 "已保留确定性期权研究包；本节不是交易指令。"
@@ -325,6 +542,7 @@ def build_live_agent_debate_provider(
                 final_decision=message,
                 section_title="Live Graph Failure",
                 section_content=message,
+                partial_checkpoint=partial_checkpoint,
             )
 
         final_state = result["final_state"]

@@ -289,6 +289,15 @@ Phase 22E hardens the timeout boundary around `--with-agent-debate`. Root cause 
 
 A forced 1-second safe-mode smoke generated CU artifacts successfully with `agent_debate_status="timeout"`, and both Markdown/DOCX contained the Chinese timeout explanation.
 
+Phase 22F adds live graph partial checkpoints and timeout diagnostics. In `graph-live-safe`, the real live graph now runs through a streaming checkpoint path when a checkpoint directory is available. Each streamed graph state writes:
+
+```text
+agent_debate_checkpoints/<SYMBOL>_<TRADE_DATE>_agent_debate_checkpoint.json
+agent_debate_checkpoints/<SYMBOL>_<TRADE_DATE>_agent_debate_events.jsonl
+```
+
+The checkpoint captures completed debate/report sections and per-event diagnostics such as elapsed time, delta time, message type, tool-call names, message content length, and completed sections. If timeout occurs, the timeout debate payload loads the latest checkpoint and appends any completed sections to the final Markdown/DOCX timeout explanation. A 90-second Kimi diagnostic on CU showed the graph reached seven streamed events before timeout; the biggest observed tool messages were `get_option_strategy_selection` (~53k chars) and `get_option_strategy_report` (~14k chars), after which the next LLM synthesis did not return before timeout. The practical mitigation now in place is checkpointed timeout reporting; the next latency-reduction candidate is compact LLM-facing option tool outputs / fewer heavy tools in the market analyst tool menu.
+
 Phase 22B also adds selector constraint handling:
 
 ```bash
@@ -380,7 +389,8 @@ the original graph:
 - Phase 22B agent-debate integration adds `tradingagents/options/agent_debate.py`, optional `--with-agent-debate` / `--agent-debate-json` report sections, and `--constraint-mode relaxed` so liquidity/risk-budget/credit-filter failures can remain review candidates with explicit warnings rather than hard no-trade exclusions.
 - Phase 22C Chinese report default changes the research-pack Markdown/DOCX shell to Chinese across daily reports, per-symbol research packs, deterministic selector/report sections, and `TradingAgents 多智能体辩论`; machine-readable strategy names and JSON keys remain unchanged for audit compatibility.
 - Phase 22D Kimi Coding Plan provider support adds `kimi-coding` as an Anthropic Messages LLM provider for the live TradingAgents graph, registers `kimi-k2.6` / `kimi-for-coding`, adds CLI live-debate routing flags (`--agent-llm-provider`, `--agent-deep-model`, `--agent-quick-model`, `--agent-backend-url`, repeatable `--agent-analyst`), and validates that Kimi Coding Plan `kimi-k2.6` can complete basic and structured-output calls.
-- Phase 22E live graph safe mode fixes full-graph timeout handling: `--with-agent-debate` defaults to `--agent-debate-mode graph-live-safe`, runs the live graph in an isolated timeout worker, returns `agent_debate.status="timeout"` on timeout/failure, and still writes deterministic research-pack JSON/Markdown/DOCX artifacts. Raw node-level checkpoints remain a future improvement.
+- Phase 22E live graph safe mode fixes full-graph timeout handling: `--with-agent-debate` defaults to `--agent-debate-mode graph-live-safe`, runs the live graph in an isolated timeout worker, returns `agent_debate.status="timeout"` on timeout/failure, and still writes deterministic research-pack JSON/Markdown/DOCX artifacts.
+- Phase 22F live graph checkpoint diagnostics adds streaming partial checkpoints under `agent_debate_checkpoints/`, loads latest partial sections into timeout/failure debate payloads, and records per-event timing/tool/message-size diagnostics. Live Kimi diagnostic showed timeout pressure from large option tool outputs (`get_option_strategy_selection` ~53k chars, `get_option_strategy_report` ~14k chars) followed by slow LLM synthesis; compact LLM-facing tool payloads are the next latency-reduction candidate.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -403,7 +413,7 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 ```bash
 cd /mnt/e/cautious_twinkle/projects/TradingAgents
 ruff check tests/conftest.py tests/test_options_*.py tests/test_analyze_options_script.py tests/test_alan_business_db_dataflow.py tests/test_kimi_provider.py tests/test_kimi_coding_provider.py cli/utils.py scripts/analyze_options.py scripts/deliver_option_strategy_report.py scripts/build_option_research_pack.py scripts/build_options_research_pack_daily.py scripts/options_cli_common.py scripts/smoke_structured_output.py tradingagents/dataflows/local_paths.py tradingagents/dataflows/alan_business_db.py tradingagents/agents/utils/options_tools.py tradingagents/options/data_loader.py tradingagents/options/context.py tradingagents/options/schemas.py tradingagents/options/agent_debate.py tradingagents/options/docx_report.py tradingagents/options/research_pack_workflow.py tradingagents/options/strategies.py tradingagents/options/selector.py tradingagents/options/research_pack.py tradingagents/options/reports.py tradingagents/options/scenarios.py tradingagents/llm_clients/factory.py tradingagents/llm_clients/model_catalog.py tradingagents/llm_clients/kimi_coding_client.py
-.venv/bin/python -m pytest tests/test_options_phase22e_live_graph_safe_mode.py tests/test_kimi_provider.py tests/test_kimi_coding_provider.py tests/test_options_phase22b_agent_debate.py -q
+.venv/bin/python -m pytest tests/test_options_phase22f_live_graph_checkpointing.py tests/test_options_phase22e_live_graph_safe_mode.py tests/test_options_phase22b_agent_debate.py tests/test_kimi_provider.py tests/test_kimi_coding_provider.py -q
 .venv/bin/python -m pytest tests/test_options_phase22c_chinese_reports.py tests/test_options_phase22b_agent_debate.py tests/test_options_phase22a_docx_reports.py tests/test_options_phase21_daily_research_pack_workflow.py tests/test_options_phase19a_research_pack.py tests/test_options_phase19b_research_pack_cli.py tests/test_options_phase18b_replay_performance.py -q
 .venv/bin/python -m pytest tests/test_options_phase20e_test_hygiene.py -q
 .venv/bin/python -m pytest tests/test_options_phase19c_research_pack_delivery.py tests/test_options_analyst_integration.py -q

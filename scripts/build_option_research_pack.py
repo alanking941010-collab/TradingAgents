@@ -163,6 +163,8 @@ def _artifact_paths(output_dir: Path, pack: dict[str, Any]) -> tuple[Path, Path,
 
 def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
+    output_dir = resolve_output_dir(args.output_dir, kind="research_packs")
+    output_dir.mkdir(parents=True, exist_ok=True)
     pack = build_option_research_pack(
         args.symbol,
         trade_date=args.trade_date,
@@ -193,11 +195,10 @@ def main(argv: list[str] | None = None) -> int:
                     else None
                 ),
                 timeout_fallback=args.agent_debate_mode == "graph-live-safe",
+                checkpoint_dir=output_dir / "agent_debate_checkpoints",
             )(pack),
         )
 
-    output_dir = resolve_output_dir(args.output_dir, kind="research_packs")
-    output_dir.mkdir(parents=True, exist_ok=True)
     pack_path, markdown_path, docx_path, payload_path = _artifact_paths(output_dir, pack)
 
     payload = pack["payloads"]["feishu_delivery_payload"]

@@ -220,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
                 else None
             ),
             timeout_fallback=args.agent_debate_mode == "graph-live-safe",
+            checkpoint_dir=output_dir / "agent_debate_checkpoints",
         )
 
     workflow = build_daily_options_research_pack_workflow(
