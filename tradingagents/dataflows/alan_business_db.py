@@ -13,7 +13,6 @@ LangChain tools can keep their original names while sourcing data locally.
 
 from __future__ import annotations
 
-import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,13 +20,15 @@ from typing import Iterable, Optional
 
 import pandas as pd
 
-METALS_DB_ENV = "TRADINGAGENTS_METALS_DB"
-SHFE_OPTIONS_DB_ENV = "TRADINGAGENTS_SHFE_OPTIONS_DB"
-TUSHARE_DB_ENV = "TRADINGAGENTS_TUSHARE_DB"
+from tradingagents.dataflows import local_paths
 
-DEFAULT_METALS_DB = "/mnt/e/star/projects/free-cme-lme-data-v1/data/metals_data.db"
-DEFAULT_SHFE_OPTIONS_DB = "/mnt/e/star/projects/shfe-options-db-v1/data/shfe_options.db"
-DEFAULT_TUSHARE_DB = "/mnt/e/star/data/tushare/tushare.db"
+METALS_DB_ENV = local_paths.METALS_DB_ENV
+SHFE_OPTIONS_DB_ENV = local_paths.SHFE_OPTIONS_DB_ENV
+TUSHARE_DB_ENV = local_paths.TUSHARE_DB_ENV
+
+DEFAULT_METALS_DB = local_paths.DEFAULT_METALS_DB
+DEFAULT_SHFE_OPTIONS_DB = local_paths.DEFAULT_SHFE_OPTIONS_DB
+DEFAULT_TUSHARE_DB = local_paths.DEFAULT_TUSHARE_DB
 
 _ALIASES = {
     "cu": ("copper", "CU"),
@@ -65,19 +66,19 @@ _ALIASES = {
 
 
 def _db_path(env_name: str, default: str) -> str:
-    return os.getenv(env_name, default)
+    return local_paths.local_db_path(env_name, default)
 
 
 def _metals_db() -> str:
-    return _db_path(METALS_DB_ENV, DEFAULT_METALS_DB)
+    return local_paths.metals_db_path()
 
 
 def _shfe_db() -> str:
-    return _db_path(SHFE_OPTIONS_DB_ENV, DEFAULT_SHFE_OPTIONS_DB)
+    return local_paths.shfe_options_db_path()
 
 
 def _tushare_db() -> str:
-    return _db_path(TUSHARE_DB_ENV, DEFAULT_TUSHARE_DB)
+    return local_paths.tushare_db_path()
 
 
 def _connect_ro(path: str) -> sqlite3.Connection:

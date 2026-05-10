@@ -107,7 +107,7 @@ def test_options_hardcoded_path_audit_documents_remaining_findings():
     audit = Path(__file__).resolve().parents[1] / "docs" / "options_hardcoded_paths_audit.md"
     assert audit.exists()
     text = audit.read_text(encoding="utf-8")
-    assert "Phase 20F hardcoded path audit" in text
+    assert "Phase 20F/20G hardcoded path audit" in text
     assert "TRADINGAGENTS_OPTIONS_OUTPUT_ROOT" in text
     legacy_output_prefix = str(Path("/mnt") / "e" / "cautious_twinkle" / "outputs")
     assert legacy_output_prefix not in text

@@ -21,7 +21,11 @@ The original vendors remain registered as fallback-capable implementations, but 
 
 ## Database paths
 
-Default WSL paths:
+Default WSL paths are centralized in:
+
+```text
+tradingagents/dataflows/local_paths.py
+```
 
 | Alias | Path |
 |---|---|

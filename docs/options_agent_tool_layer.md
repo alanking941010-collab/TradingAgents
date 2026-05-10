@@ -309,6 +309,7 @@ the original graph:
 - Phase 20D cleanup makes replay chronology explicit: review dates are sorted ascending before marking, review dates before entry are rejected, and replay payloads expose input vs resolved review-date sequences to make final PnL and drawdown auditable.
 - Phase 20E maintainability cleanup centralizes the shared `shfe_options_db` SQLite fixture in `tests/conftest.py`, removes cross-test fixture imports that caused Ruff fixture-shadowing noise, and adds an options-only Ruff gate for `tests/conftest.py`, `tests/test_options_*.py`, and `scripts/build_option_research_pack.py`.
 - Phase 20F maintainability cleanup adds runtime TypedDict schema validators for core options payloads, introduces `OptionAnalysisContext` caching for shared analytics/strategy construction across selection/report/research-pack workflows, makes options CLI artifact roots configurable through `TRADINGAGENTS_OPTIONS_OUTPUT_ROOT` and per-kind env vars, centralizes sanitized subprocess helpers, and documents the remaining hardcoded-path audit.
+- Phase 20G maintainability cleanup centralizes Alan local data warehouse env vars/default paths in `tradingagents/dataflows/local_paths.py` so options and business-data loaders share one source of truth while preserving env overrides and read-only SQLite access.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -330,8 +331,8 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 
 ```bash
 cd /mnt/e/cautious_twinkle/projects/TradingAgents
-ruff check tests/conftest.py tests/test_options_*.py tests/test_analyze_options_script.py scripts/analyze_options.py scripts/deliver_option_strategy_report.py scripts/build_option_research_pack.py scripts/options_cli_common.py tradingagents/options/context.py tradingagents/options/schemas.py tradingagents/options/strategies.py tradingagents/options/selector.py tradingagents/options/research_pack.py tradingagents/options/reports.py tradingagents/options/scenarios.py
-.venv/bin/python -m pytest tests/test_options_phase20f_maintainability.py -q
+ruff check tests/conftest.py tests/test_options_*.py tests/test_analyze_options_script.py scripts/analyze_options.py scripts/deliver_option_strategy_report.py scripts/build_option_research_pack.py scripts/options_cli_common.py tradingagents/dataflows/local_paths.py tradingagents/dataflows/alan_business_db.py tradingagents/options/data_loader.py tradingagents/options/context.py tradingagents/options/schemas.py tradingagents/options/strategies.py tradingagents/options/selector.py tradingagents/options/research_pack.py tradingagents/options/reports.py tradingagents/options/scenarios.py
+.venv/bin/python -m pytest tests/test_options_phase20g_local_paths.py tests/test_alan_business_db_dataflow.py tests/test_options_phase20f_maintainability.py -q
 .venv/bin/python -m pytest tests/test_options_phase20e_test_hygiene.py -q
 .venv/bin/python -m pytest tests/test_options_phase19c_research_pack_delivery.py tests/test_options_analyst_integration.py -q
 .venv/bin/python -m pytest tests/test_options_phase19b_research_pack_cli.py tests/test_options_phase19a_research_pack.py -q

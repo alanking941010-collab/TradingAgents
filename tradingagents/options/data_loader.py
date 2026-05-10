@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import os
 import sqlite3
 from pathlib import Path
 from typing import Iterable
 
+from tradingagents.dataflows import local_paths
 from tradingagents.options.models import OptionChainSnapshot, OptionQuote
 
-SHFE_OPTIONS_DB_ENV = "TRADINGAGENTS_SHFE_OPTIONS_DB"
-DEFAULT_SHFE_OPTIONS_DB = "/mnt/e/star/projects/shfe-options-db-v1/data/shfe_options.db"
+SHFE_OPTIONS_DB_ENV = local_paths.SHFE_OPTIONS_DB_ENV
+DEFAULT_SHFE_OPTIONS_DB = local_paths.DEFAULT_SHFE_OPTIONS_DB
 
 _ALIASES = {
     "cu": "CU",
@@ -71,7 +71,7 @@ def format_iso(date_str: str | None) -> str | None:
 
 
 def shfe_db_path() -> str:
-    return os.getenv(SHFE_OPTIONS_DB_ENV, DEFAULT_SHFE_OPTIONS_DB)
+    return local_paths.shfe_options_db_path()
 
 
 def connect_shfe_ro(path: str | None = None) -> sqlite3.Connection:
