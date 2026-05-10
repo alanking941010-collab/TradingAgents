@@ -112,6 +112,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
         choices=["market", "social", "news", "fundamentals"],
         help="Analyst to include in live --with-agent-debate; repeatable. Defaults to market/news/fundamentals.",
     )
+    parser.add_argument(
+        "--agent-debate-mode",
+        choices=["graph-live", "graph-live-safe"],
+        default="graph-live-safe",
+        help="Live graph mode. graph-live-safe returns a timeout/failure debate so deterministic artifacts are still written.",
+    )
+    parser.add_argument(
+        "--agent-debate-timeout-seconds",
+        type=float,
+        default=300,
+        help="Wall-clock timeout for --agent-debate-mode graph-live-safe.",
+    )
     parser.add_argument("--output-dir", default=None, help="Artifact directory; defaults to TRADINGAGENTS_OPTIONS_RESEARCH_PACKS_OUTPUT_DIR or TRADINGAGENTS_OPTIONS_OUTPUT_ROOT/research_packs")
     parser.add_argument(
         "--stdout",
@@ -175,6 +187,12 @@ def main(argv: list[str] | None = None) -> int:
             build_live_agent_debate_provider(
                 selected_analysts=args.agent_analysts,
                 config_overrides=_agent_debate_config_overrides(args),
+                timeout_seconds=(
+                    args.agent_debate_timeout_seconds
+                    if args.agent_debate_mode == "graph-live-safe"
+                    else None
+                ),
+                timeout_fallback=args.agent_debate_mode == "graph-live-safe",
             )(pack),
         )
 

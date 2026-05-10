@@ -107,6 +107,19 @@ def test_daily_workflow_appends_agent_debate_to_markdown_docx_and_index(tmp_path
     assert index["runs"][0]["agent_debate_status"] == "success"
 
 
+def test_daily_cli_live_agent_debate_defaults_to_safe_timeout_mode():
+    from scripts.build_options_research_pack_daily import build_arg_parser
+
+    args = build_arg_parser().parse_args([
+        "--with-agent-debate",
+        "--agent-llm-provider",
+        "kimi-coding",
+    ])
+
+    assert args.agent_debate_mode == "graph-live-safe"
+    assert args.agent_debate_timeout_seconds == 300
+
+
 def test_daily_cli_agent_debate_config_overrides_support_kimi_coding():
     from scripts.build_options_research_pack_daily import _agent_debate_config_overrides, build_arg_parser
 
