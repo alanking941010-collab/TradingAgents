@@ -113,6 +113,18 @@ MODEL_OPTIONS: ProviderModeOptions = {
             ("Custom model ID", "custom"),
         ],
     },
+    "kimi-coding": {
+        "quick": [
+            ("Kimi K2.6 Coding Plan", "kimi-k2.6"),
+            ("Kimi for Coding", "kimi-for-coding"),
+            ("Custom model ID", "custom"),
+        ],
+        "deep": [
+            ("Kimi K2.6 Coding Plan", "kimi-k2.6"),
+            ("Kimi for Coding", "kimi-for-coding"),
+            ("Custom model ID", "custom"),
+        ],
+    },
     # OpenRouter: fetched dynamically. Azure: any deployed model name.
     "ollama": {
         "quick": [

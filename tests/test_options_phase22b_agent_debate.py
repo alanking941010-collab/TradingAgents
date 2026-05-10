@@ -107,6 +107,51 @@ def test_daily_workflow_appends_agent_debate_to_markdown_docx_and_index(tmp_path
     assert index["runs"][0]["agent_debate_status"] == "success"
 
 
+def test_daily_cli_agent_debate_config_overrides_support_kimi_coding():
+    from scripts.build_options_research_pack_daily import _agent_debate_config_overrides, build_arg_parser
+
+    args = build_arg_parser().parse_args([
+        "--with-agent-debate",
+        "--agent-llm-provider",
+        "kimi-coding",
+    ])
+
+    overrides = _agent_debate_config_overrides(args)
+
+    assert overrides["llm_provider"] == "kimi-coding"
+    assert overrides["deep_think_llm"] == "kimi-k2.6"
+    assert overrides["quick_think_llm"] == "kimi-k2.6"
+    assert overrides["output_language"] == "Chinese"
+    assert "backend_url" not in overrides
+
+
+def test_single_cli_agent_debate_config_overrides_support_explicit_models():
+    from scripts.build_option_research_pack import _agent_debate_config_overrides, build_arg_parser
+
+    args = build_arg_parser().parse_args([
+        "CU",
+        "--with-agent-debate",
+        "--agent-llm-provider",
+        "kimi-coding",
+        "--agent-deep-model",
+        "kimi-for-coding",
+        "--agent-quick-model",
+        "kimi-k2.6",
+        "--agent-backend-url",
+        "https://proxy.example.com/coding",
+    ])
+
+    overrides = _agent_debate_config_overrides(args)
+
+    assert overrides == {
+        "output_language": "Chinese",
+        "llm_provider": "kimi-coding",
+        "deep_think_llm": "kimi-for-coding",
+        "quick_think_llm": "kimi-k2.6",
+        "backend_url": "https://proxy.example.com/coding",
+    }
+
+
 def test_daily_cli_can_append_precomputed_agent_debate_json(tmp_path, shfe_options_db):
     _install_selector_fixture(shfe_options_db)
     debate_path = tmp_path / "debate.json"

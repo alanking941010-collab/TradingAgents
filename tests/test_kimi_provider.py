@@ -10,9 +10,9 @@ from unittest.mock import patch
 
 import pytest
 
-from tradingagents.llm_clients.factory import create_llm_client, _OPENAI_COMPATIBLE
-from tradingagents.llm_clients.model_catalog import get_model_options, get_known_models
-from tradingagents.llm_clients.openai_client import OpenAIClient, _PROVIDER_CONFIG
+from tradingagents.llm_clients.factory import _OPENAI_COMPATIBLE, create_llm_client
+from tradingagents.llm_clients.model_catalog import get_known_models, get_model_options
+from tradingagents.llm_clients.openai_client import _PROVIDER_CONFIG, OpenAIClient
 
 
 @pytest.mark.unit
@@ -91,10 +91,11 @@ class TestKimiCLIProviderList(unittest.TestCase):
 
     @patch("cli.utils.questionary.select")
     def test_select_llm_provider_includes_kimi(self, mock_select):
-        from cli.utils import select_llm_provider
         # Just verify the function doesn't raise and the provider list contains kimi
         # We can't easily run the interactive prompt, so inspect the source
         import inspect
+
+        from cli.utils import select_llm_provider
         src = inspect.getsource(select_llm_provider)
         self.assertIn("kimi", src.lower())
 

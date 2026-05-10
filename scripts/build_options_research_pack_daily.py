@@ -85,6 +85,34 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Run the live TradingAgentsGraph for each successful pack and append debate sections. This can call LLMs.",
     )
     parser.add_argument(
+        "--agent-llm-provider",
+        default=None,
+        help="Optional provider for --with-agent-debate, e.g. kimi-coding. Defaults to project config.",
+    )
+    parser.add_argument(
+        "--agent-deep-model",
+        default=None,
+        help="Optional deep_think_llm model for --with-agent-debate.",
+    )
+    parser.add_argument(
+        "--agent-quick-model",
+        default=None,
+        help="Optional quick_think_llm model for --with-agent-debate.",
+    )
+    parser.add_argument(
+        "--agent-backend-url",
+        default=None,
+        help="Optional backend_url for --with-agent-debate provider routing.",
+    )
+    parser.add_argument(
+        "--agent-analyst",
+        dest="agent_analysts",
+        action="append",
+        default=None,
+        choices=["market", "social", "news", "fundamentals"],
+        help="Analyst to include in live --with-agent-debate; repeatable. Defaults to market/news/fundamentals.",
+    )
+    parser.add_argument(
         "--output-dir",
         default=None,
         help="Artifact directory; defaults to TRADINGAGENTS_OPTIONS_RESEARCH_PACKS_OUTPUT_DIR or TRADINGAGENTS_OPTIONS_OUTPUT_ROOT/research_packs",
@@ -101,6 +129,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Print JSON summary, combined Markdown, Hermes cron spec, or nothing.",
     )
     return parser
+
+
+def _agent_debate_config_overrides(args: argparse.Namespace) -> dict:
+    """Build TradingAgentsGraph config overrides for live agent debate."""
+    overrides = {"output_language": "Chinese"}
+    if args.agent_llm_provider:
+        overrides["llm_provider"] = args.agent_llm_provider
+        if args.agent_llm_provider == "kimi-coding":
+            overrides["deep_think_llm"] = "kimi-k2.6"
+            overrides["quick_think_llm"] = "kimi-k2.6"
+    if args.agent_deep_model:
+        overrides["deep_think_llm"] = args.agent_deep_model
+    if args.agent_quick_model:
+        overrides["quick_think_llm"] = args.agent_quick_model
+    if args.agent_backend_url:
+        overrides["backend_url"] = args.agent_backend_url
+    return overrides
 
 
 def _summary(workflow: dict) -> dict:
@@ -154,7 +199,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.agent_debate_json:
         agent_debate_provider = load_agent_debate_json(args.agent_debate_json)
     elif args.with_agent_debate:
-        agent_debate_provider = build_live_agent_debate_provider()
+        agent_debate_provider = build_live_agent_debate_provider(
+            selected_analysts=args.agent_analysts,
+            config_overrides=_agent_debate_config_overrides(args),
+        )
 
     workflow = build_daily_options_research_pack_workflow(
         symbols=symbols,

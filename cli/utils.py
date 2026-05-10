@@ -1,6 +1,6 @@
-import questionary
-from typing import List, Optional, Tuple, Dict
+from typing import List, Tuple
 
+import questionary
 from rich.console import Console
 
 from cli.models import AnalystType
@@ -243,6 +243,7 @@ def select_llm_provider() -> tuple[str, str | None]:
         ("Azure OpenAI", "azure", None),
         ("Ollama", "ollama", "http://localhost:11434/v1"),
         ("Kimi (Moonshot)", "kimi", "https://api.moonshot.cn/v1"),
+        ("Kimi Coding Plan", "kimi-coding", "https://api.kimi.com/coding"),
     ]
 
     choice = questionary.select(

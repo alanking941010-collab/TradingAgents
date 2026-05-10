@@ -84,6 +84,34 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run the live TradingAgentsGraph and append analyst/debate/risk/portfolio sections. This can call LLMs.",
     )
+    parser.add_argument(
+        "--agent-llm-provider",
+        default=None,
+        help="Optional provider for --with-agent-debate, e.g. kimi-coding. Defaults to project config.",
+    )
+    parser.add_argument(
+        "--agent-deep-model",
+        default=None,
+        help="Optional deep_think_llm model for --with-agent-debate.",
+    )
+    parser.add_argument(
+        "--agent-quick-model",
+        default=None,
+        help="Optional quick_think_llm model for --with-agent-debate.",
+    )
+    parser.add_argument(
+        "--agent-backend-url",
+        default=None,
+        help="Optional backend_url for --with-agent-debate provider routing.",
+    )
+    parser.add_argument(
+        "--agent-analyst",
+        dest="agent_analysts",
+        action="append",
+        default=None,
+        choices=["market", "social", "news", "fundamentals"],
+        help="Analyst to include in live --with-agent-debate; repeatable. Defaults to market/news/fundamentals.",
+    )
     parser.add_argument("--output-dir", default=None, help="Artifact directory; defaults to TRADINGAGENTS_OPTIONS_RESEARCH_PACKS_OUTPUT_DIR or TRADINGAGENTS_OPTIONS_OUTPUT_ROOT/research_packs")
     parser.add_argument(
         "--stdout",
@@ -92,6 +120,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Print JSON summary, research-pack Markdown, Hermes cron spec, or nothing. Files are always written.",
     )
     return parser
+
+
+def _agent_debate_config_overrides(args: argparse.Namespace) -> dict:
+    """Build TradingAgentsGraph config overrides for live agent debate."""
+    overrides = {"output_language": "Chinese"}
+    if args.agent_llm_provider:
+        overrides["llm_provider"] = args.agent_llm_provider
+        if args.agent_llm_provider == "kimi-coding":
+            overrides["deep_think_llm"] = "kimi-k2.6"
+            overrides["quick_think_llm"] = "kimi-k2.6"
+    if args.agent_deep_model:
+        overrides["deep_think_llm"] = args.agent_deep_model
+    if args.agent_quick_model:
+        overrides["quick_think_llm"] = args.agent_quick_model
+    if args.agent_backend_url:
+        overrides["backend_url"] = args.agent_backend_url
+    return overrides
 
 
 def _artifact_paths(output_dir: Path, pack: dict[str, Any]) -> tuple[Path, Path, Path, Path]:
@@ -125,7 +170,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.agent_debate_json:
         pack = append_agent_debate_to_research_pack(pack, load_agent_debate_json(args.agent_debate_json)(pack))
     elif args.with_agent_debate:
-        pack = append_agent_debate_to_research_pack(pack, build_live_agent_debate_provider()(pack))
+        pack = append_agent_debate_to_research_pack(
+            pack,
+            build_live_agent_debate_provider(
+                selected_analysts=args.agent_analysts,
+                config_overrides=_agent_debate_config_overrides(args),
+            )(pack),
+        )
 
     output_dir = resolve_output_dir(args.output_dir, kind="research_packs")
     output_dir.mkdir(parents=True, exist_ok=True)

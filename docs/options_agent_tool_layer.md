@@ -268,6 +268,18 @@ The deterministic research pack remains the audit source for option prices, vola
 
 Phase 22C makes the options research-pack report shell Chinese by default: daily reports, per-symbol research packs, deterministic strategy reports, selector sections, DOCX content, and appended `TradingAgents 多智能体辩论` headings now use Chinese user-facing labels. Strategy enum values such as `short_iron_condor` remain in English for machine auditability, and JSON keys remain unchanged.
 
+Phase 22D adds Kimi Coding Plan support for the live TradingAgents graph. The original `kimi` provider remains the Moonshot OpenAI-compatible endpoint (`https://api.moonshot.cn/v1`). The new `kimi-coding` provider uses Kimi Coding Plan keys via the Anthropic Messages route (`https://api.kimi.com/coding`) with `KIMI_API_KEY` and default model `kimi-k2.6`; `kimi-for-coding` is also registered because the Coding Plan `/models` health endpoint may list that name. Single and daily research-pack CLIs now expose live-debate routing flags:
+
+```bash
+--with-agent-debate \
+--agent-llm-provider kimi-coding \
+--agent-deep-model kimi-k2.6 \
+--agent-quick-model kimi-k2.6 \
+--agent-analyst market
+```
+
+`--agent-analyst` is repeatable and lets live debate smoke runs start with fewer analyst nodes (for example `market` only) before enabling the heavier market/news/fundamentals graph. Provider smoke results on 2026-05-10: Moonshot `provider="kimi"` with the Kimi Coding Plan key returns 401 as expected for the mismatched endpoint; `provider="kimi-coding", model="kimi-k2.6"` returns `OK`; structured-output manager/trader/portfolio smoke passes for `kimi-coding`. A full `--with-agent-debate` CLI graph still timed out without artifacts in the live environment, so production live graph use still needs the existing safe-mode work: node timeouts, checkpoint artifacts, and partial raw-text fallback.
+
 Phase 22B also adds selector constraint handling:
 
 ```bash
@@ -358,6 +370,7 @@ the original graph:
 - Phase 22A DOCX export adds `tradingagents/options/docx_report.py` so single-symbol and daily/batch research-pack workflows write Word `.docx` reports alongside Markdown/JSON artifacts without requiring Pandoc or python-docx.
 - Phase 22B agent-debate integration adds `tradingagents/options/agent_debate.py`, optional `--with-agent-debate` / `--agent-debate-json` report sections, and `--constraint-mode relaxed` so liquidity/risk-budget/credit-filter failures can remain review candidates with explicit warnings rather than hard no-trade exclusions.
 - Phase 22C Chinese report default changes the research-pack Markdown/DOCX shell to Chinese across daily reports, per-symbol research packs, deterministic selector/report sections, and `TradingAgents 多智能体辩论`; machine-readable strategy names and JSON keys remain unchanged for audit compatibility.
+- Phase 22D Kimi Coding Plan provider support adds `kimi-coding` as an Anthropic Messages LLM provider for the live TradingAgents graph, registers `kimi-k2.6` / `kimi-for-coding`, adds CLI live-debate routing flags (`--agent-llm-provider`, `--agent-deep-model`, `--agent-quick-model`, `--agent-backend-url`, repeatable `--agent-analyst`), and validates that Kimi Coding Plan `kimi-k2.6` can complete basic and structured-output calls; full graph runs still require safe-mode timeout/checkpoint hardening before production use.
 
 The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases such as `copper`, `铜`, `gold`, `黄金`). Non-options symbols keep the stock-style toolset and prompts.
 
@@ -379,7 +392,8 @@ The activation check is symbol-based (`CU/AU/AG/AL/ZN/NI/PB/SN/AO` plus aliases 
 
 ```bash
 cd /mnt/e/cautious_twinkle/projects/TradingAgents
-ruff check tests/conftest.py tests/test_options_*.py tests/test_analyze_options_script.py tests/test_alan_business_db_dataflow.py scripts/analyze_options.py scripts/deliver_option_strategy_report.py scripts/build_option_research_pack.py scripts/build_options_research_pack_daily.py scripts/options_cli_common.py tradingagents/dataflows/local_paths.py tradingagents/dataflows/alan_business_db.py tradingagents/agents/utils/options_tools.py tradingagents/options/data_loader.py tradingagents/options/context.py tradingagents/options/schemas.py tradingagents/options/agent_debate.py tradingagents/options/docx_report.py tradingagents/options/research_pack_workflow.py tradingagents/options/strategies.py tradingagents/options/selector.py tradingagents/options/research_pack.py tradingagents/options/reports.py tradingagents/options/scenarios.py
+ruff check tests/conftest.py tests/test_options_*.py tests/test_analyze_options_script.py tests/test_alan_business_db_dataflow.py tests/test_kimi_provider.py tests/test_kimi_coding_provider.py cli/utils.py scripts/analyze_options.py scripts/deliver_option_strategy_report.py scripts/build_option_research_pack.py scripts/build_options_research_pack_daily.py scripts/options_cli_common.py scripts/smoke_structured_output.py tradingagents/dataflows/local_paths.py tradingagents/dataflows/alan_business_db.py tradingagents/agents/utils/options_tools.py tradingagents/options/data_loader.py tradingagents/options/context.py tradingagents/options/schemas.py tradingagents/options/agent_debate.py tradingagents/options/docx_report.py tradingagents/options/research_pack_workflow.py tradingagents/options/strategies.py tradingagents/options/selector.py tradingagents/options/research_pack.py tradingagents/options/reports.py tradingagents/options/scenarios.py tradingagents/llm_clients/factory.py tradingagents/llm_clients/model_catalog.py tradingagents/llm_clients/kimi_coding_client.py
+.venv/bin/python -m pytest tests/test_kimi_provider.py tests/test_kimi_coding_provider.py tests/test_options_phase22b_agent_debate.py -q
 .venv/bin/python -m pytest tests/test_options_phase22c_chinese_reports.py tests/test_options_phase22b_agent_debate.py tests/test_options_phase22a_docx_reports.py tests/test_options_phase21_daily_research_pack_workflow.py tests/test_options_phase19a_research_pack.py tests/test_options_phase19b_research_pack_cli.py tests/test_options_phase18b_replay_performance.py -q
 .venv/bin/python -m pytest tests/test_options_phase20e_test_hygiene.py -q
 .venv/bin/python -m pytest tests/test_options_phase19c_research_pack_delivery.py tests/test_options_analyst_integration.py -q
