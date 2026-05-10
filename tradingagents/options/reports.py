@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE, analyze_option_chain
+from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE
+from tradingagents.options.context import OptionAnalysisContext
 from tradingagents.options.replay import build_option_strategy_replay
 from tradingagents.options.scenarios import build_option_strategy_scenarios
-from tradingagents.options.strategies import build_option_strategy_candidate
 
 
 def _round(value: float | None, digits: int = 8) -> float | None:
@@ -163,12 +163,14 @@ def build_option_strategy_report(
     review_dates: Iterable[str] | None = None,
     risk_budget_cash: float | None = None,
     risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
+    analysis_context: OptionAnalysisContext | None = None,
 ) -> dict[str, Any]:
     """Build a Markdown-first report from deterministic option pipeline outputs."""
-    analytics_report = analyze_option_chain(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
-    strategy = build_option_strategy_candidate(
-        symbol,
-        strategy_type=strategy_type,
+    context = analysis_context or OptionAnalysisContext(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
+    analytics_report = context.get_analysis(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
+    strategy = context.get_strategy_candidate(
+        strategy_type,
+        symbol=symbol,
         trade_date=trade_date,
         expiry=expiry,
         risk_free_rate=risk_free_rate,
@@ -181,6 +183,7 @@ def build_option_strategy_report(
         expiry=expiry,
         risk_free_rate=risk_free_rate,
         risk_budget_cash=risk_budget_cash,
+        analysis_context=context,
     )
     replay = None
     if review_dates is not None:

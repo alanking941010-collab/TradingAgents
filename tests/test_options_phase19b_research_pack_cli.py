@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import sys
 
+from scripts.options_cli_common import run_subprocess_checked
 from tests.test_options_phase12_replay import _insert_review_day
 from tests.test_options_phase17_strategy_selector import _install_selector_fixture
 from tests.test_options_phase18b_replay_performance import _insert_second_review_day
@@ -15,10 +14,7 @@ from tests.test_options_phase18b_replay_performance import _insert_second_review
 def test_research_pack_cli_writes_json_markdown_payload_and_summary(tmp_path, shfe_options_db):
     _install_selector_fixture(shfe_options_db)
     outdir = tmp_path / "research_pack"
-    env = os.environ.copy()
-    env["TRADINGAGENTS_SHFE_OPTIONS_DB"] = str(shfe_options_db)
-
-    result = subprocess.run(
+    result = run_subprocess_checked(
         [
             sys.executable,
             "scripts/build_option_research_pack.py",
@@ -40,10 +36,8 @@ def test_research_pack_cli_writes_json_markdown_payload_and_summary(tmp_path, sh
             "--output-dir",
             str(outdir),
         ],
-        check=True,
-        capture_output=True,
-        text=True,
-        env=env,
+        env_extra={"TRADINGAGENTS_SHFE_OPTIONS_DB": str(shfe_options_db)},
+        timeout=30,
     )
 
     summary = json.loads(result.stdout)
@@ -75,10 +69,7 @@ def test_research_pack_cli_can_print_markdown_for_explicit_replay_pack(tmp_path,
     _insert_review_day(shfe_options_db)
     _insert_second_review_day(shfe_options_db)
     outdir = tmp_path / "explicit_pack"
-    env = os.environ.copy()
-    env["TRADINGAGENTS_SHFE_OPTIONS_DB"] = str(shfe_options_db)
-
-    result = subprocess.run(
+    result = run_subprocess_checked(
         [
             sys.executable,
             "scripts/build_option_research_pack.py",
@@ -106,10 +97,8 @@ def test_research_pack_cli_can_print_markdown_for_explicit_replay_pack(tmp_path,
             "--stdout",
             "markdown",
         ],
-        check=True,
-        capture_output=True,
-        text=True,
-        env=env,
+        env_extra={"TRADINGAGENTS_SHFE_OPTIONS_DB": str(shfe_options_db)},
+        timeout=30,
     )
 
     assert result.stdout.startswith("# Options Research Pack")

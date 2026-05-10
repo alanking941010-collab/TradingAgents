@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
-import subprocess
 import sys
 from pathlib import Path
+
+from scripts.options_cli_common import run_subprocess_checked
 
 
 def _create_shfe_options_fixture(db_path: Path) -> None:
@@ -49,9 +49,7 @@ def test_analyze_options_cli_writes_json_and_markdown(tmp_path):
     outdir = tmp_path / "out"
     _create_shfe_options_fixture(db_path)
 
-    env = os.environ.copy()
-    env["TRADINGAGENTS_SHFE_OPTIONS_DB"] = str(db_path)
-    proc = subprocess.run(
+    proc = run_subprocess_checked(
         [
             sys.executable,
             "scripts/analyze_options.py",
@@ -64,12 +62,8 @@ def test_analyze_options_cli_writes_json_and_markdown(tmp_path):
             str(outdir),
         ],
         cwd=Path(__file__).resolve().parents[1],
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        env_extra={"TRADINGAGENTS_SHFE_OPTIONS_DB": str(db_path)},
         timeout=30,
-        check=True,
     )
 
     payload = json.loads(proc.stdout)
@@ -98,10 +92,7 @@ def test_analyze_options_cli_writes_json_and_markdown(tmp_path):
 def test_analyze_options_cli_can_print_markdown(tmp_path):
     db_path = tmp_path / "shfe_options.db"
     _create_shfe_options_fixture(db_path)
-    env = os.environ.copy()
-    env["TRADINGAGENTS_SHFE_OPTIONS_DB"] = str(db_path)
-
-    proc = subprocess.run(
+    proc = run_subprocess_checked(
         [
             sys.executable,
             "scripts/analyze_options.py",
@@ -116,12 +107,8 @@ def test_analyze_options_cli_can_print_markdown(tmp_path):
             str(tmp_path / "out"),
         ],
         cwd=Path(__file__).resolve().parents[1],
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        env_extra={"TRADINGAGENTS_SHFE_OPTIONS_DB": str(db_path)},
         timeout=30,
-        check=True,
     )
 
     assert proc.stdout.startswith("# Options analytics core: CU")

@@ -6,12 +6,14 @@ summary, and Feishu-ready payload into one side-effect-free research package.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 import shlex
+from collections.abc import Iterable
 from typing import Any
 
 from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE
+from tradingagents.options.context import OptionAnalysisContext
 from tradingagents.options.reports import build_feishu_delivery_payload, build_option_strategy_report
+from tradingagents.options.schemas import validate_cron_handoff_spec, validate_research_pack
 from tradingagents.options.selector import build_option_strategy_selection
 
 
@@ -86,6 +88,7 @@ def build_option_research_pack(
     min_credit_pct_of_wing_width: float | None = None,
     max_bid_ask_spread_pct: float | None = None,
     delivery_target: str | None = None,
+    analysis_context: OptionAnalysisContext | None = None,
 ) -> dict[str, Any]:
     """Build one side-effect-free research pack from selector + selected report.
 
@@ -93,6 +96,7 @@ def build_option_research_pack(
     used. If it is supplied, the pack still includes the full selector/ranking but
     reports the explicit override strategy for auditability.
     """
+    context = analysis_context or OptionAnalysisContext(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
     selection = build_option_strategy_selection(
         symbol,
         trade_date=trade_date,
@@ -103,6 +107,7 @@ def build_option_research_pack(
         risk_free_rate=risk_free_rate,
         min_credit_pct_of_wing_width=min_credit_pct_of_wing_width,
         max_bid_ask_spread_pct=max_bid_ask_spread_pct,
+        analysis_context=context,
     )
     selected_strategy = strategy_type or selection.get("selected_strategy")
     if not selected_strategy:
@@ -116,6 +121,7 @@ def build_option_research_pack(
         review_dates=review_dates,
         risk_budget_cash=risk_budget_cash,
         risk_free_rate=risk_free_rate,
+        analysis_context=context,
     )
     delivery_payload = build_feishu_delivery_payload(report, target=delivery_target, dry_run=True)
     selected_row = _find_ranked_row(selection, selected_strategy) or {}
@@ -158,7 +164,7 @@ def build_option_research_pack(
         },
     }
     pack["markdown"] = _render_markdown(pack)
-    return pack
+    return validate_research_pack(pack)
 
 
 def build_option_research_pack_hermes_cron_spec(
@@ -214,7 +220,7 @@ def build_option_research_pack_hermes_cron_spec(
     _append_option(args, "--output-dir", output_dir)
     args.extend(["--stdout", "markdown"])
     command = _command_string(args)
-    return {
+    payload = {
         "scheduler": "hermes_cron",
         "no_agent": True,
         "schedule": schedule,
@@ -240,3 +246,4 @@ def build_option_research_pack_hermes_cron_spec(
         },
         "side_effect_free": True,
     }
+    return validate_cron_handoff_spec(payload)

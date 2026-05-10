@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE, analyze_option_chain
-from tradingagents.options.strategies import build_option_strategy_candidate
+from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE
+from tradingagents.options.context import OptionAnalysisContext
+from tradingagents.options.schemas import validate_selection_result
 
 _DEFAULT_STRATEGIES = (
     "bull_call_spread",
@@ -326,18 +327,20 @@ def build_option_strategy_selection(
     strategy_types: Iterable[str] = _DEFAULT_STRATEGIES,
     min_credit_pct_of_wing_width: float | None = None,
     max_bid_ask_spread_pct: float | None = None,
+    analysis_context: OptionAnalysisContext | None = None,
 ) -> dict[str, Any]:
     """Rank supported option strategies using deterministic analytics and risk fields."""
-    report = analyze_option_chain(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
+    context = analysis_context or OptionAnalysisContext(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
+    report = context.get_analysis(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
     regime = _surface_regime(report)
     ranked: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
 
     for strategy_type in strategy_types:
         try:
-            candidate = build_option_strategy_candidate(
-                symbol,
-                strategy_type=strategy_type,
+            candidate = context.get_strategy_candidate(
+                strategy_type,
+                symbol=symbol,
                 trade_date=trade_date,
                 expiry=expiry,
                 risk_free_rate=risk_free_rate,
@@ -377,4 +380,4 @@ def build_option_strategy_selection(
         },
     }
     selection["markdown"] = _render_markdown(selection)
-    return selection
+    return validate_selection_result(selection)

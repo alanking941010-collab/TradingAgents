@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import sys
 
+from scripts.options_cli_common import run_subprocess_checked
 from tests.test_options_phase17_strategy_selector import _install_selector_fixture
 
 
@@ -75,10 +74,7 @@ def test_research_pack_hermes_cron_spec_tool_returns_parseable_json(shfe_options
 def test_research_pack_cli_can_print_hermes_cron_spec(tmp_path, shfe_options_db):
     _install_selector_fixture(shfe_options_db)
     outdir = tmp_path / "packs"
-    env = os.environ.copy()
-    env["TRADINGAGENTS_SHFE_OPTIONS_DB"] = str(shfe_options_db)
-
-    result = subprocess.run(
+    result = run_subprocess_checked(
         [
             sys.executable,
             "scripts/build_option_research_pack.py",
@@ -102,10 +98,8 @@ def test_research_pack_cli_can_print_hermes_cron_spec(tmp_path, shfe_options_db)
             "--stdout",
             "hermes-cron-spec",
         ],
-        check=True,
-        capture_output=True,
-        text=True,
-        env=env,
+        env_extra={"TRADINGAGENTS_SHFE_OPTIONS_DB": str(shfe_options_db)},
+        timeout=30,
     )
 
     spec = json.loads(result.stdout)

@@ -22,10 +22,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.options_cli_common import resolve_output_dir  # noqa: E402
 from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE, analyze_option_chain  # noqa: E402
 from tradingagents.options.models import EnrichedOptionQuote, OptionAnalyticsReport  # noqa: E402
-
-DEFAULT_OUTPUT_DIR = Path("/mnt/e/cautious_twinkle/outputs/tradingagents/options")
 
 
 def _safe_part(value: str | None) -> str:
@@ -130,7 +129,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--date", dest="trade_date", help="Trade date, e.g. 2026-05-06 or 20260506")
     parser.add_argument("--expiry", help="Optional maturity date, e.g. 20260525")
     parser.add_argument("--risk-free-rate", type=float, default=DEFAULT_RISK_FREE_RATE)
-    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("--output-dir", default=None, help="Artifact directory; defaults to TRADINGAGENTS_OPTIONS_ANALYTICS_OUTPUT_DIR or TRADINGAGENTS_OPTIONS_OUTPUT_ROOT/analytics")
     parser.add_argument(
         "--stdout",
         choices=["summary-json", "markdown", "none"],
@@ -148,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         expiry=args.expiry,
         risk_free_rate=args.risk_free_rate,
     )
-    output_dir = Path(args.output_dir).expanduser()
+    output_dir = resolve_output_dir(args.output_dir, kind="analytics")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     date_part = _safe_part(report.trade_date)

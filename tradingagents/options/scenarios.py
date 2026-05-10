@@ -7,6 +7,7 @@ from itertools import product
 from typing import Any, Iterable
 
 from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE
+from tradingagents.options.context import OptionAnalysisContext
 from tradingagents.options.pricing import black76_price
 from tradingagents.options.strategies import build_option_strategy_candidate
 
@@ -121,6 +122,7 @@ def build_option_strategy_scenarios(
     iv_shocks: Iterable[float] = (-0.05, -0.02, 0.0, 0.02, 0.05),
     days_forward: Iterable[int] = (0, 1, 5, 20),
     risk_budget_cash: float | None = None,
+    analysis_context: OptionAnalysisContext | None = None,
 ) -> dict[str, Any]:
     """Return a deterministic scenario PnL matrix for a structured strategy.
 
@@ -128,14 +130,24 @@ def build_option_strategy_scenarios(
     SHFE contract multiplier. IV shocks are absolute volatility points, e.g.
     ``0.02`` means +2 vol points.
     """
-    strategy = build_option_strategy_candidate(
-        symbol,
-        strategy_type=strategy_type,
-        trade_date=trade_date,
-        expiry=expiry,
-        risk_free_rate=risk_free_rate,
-        risk_budget_cash=risk_budget_cash,
-    )
+    if analysis_context is not None:
+        strategy = analysis_context.get_strategy_candidate(
+            strategy_type,
+            symbol=symbol,
+            trade_date=trade_date,
+            expiry=expiry,
+            risk_free_rate=risk_free_rate,
+            risk_budget_cash=risk_budget_cash,
+        )
+    else:
+        strategy = build_option_strategy_candidate(
+            symbol,
+            strategy_type=strategy_type,
+            trade_date=trade_date,
+            expiry=expiry,
+            risk_free_rate=risk_free_rate,
+            risk_budget_cash=risk_budget_cash,
+        )
     contract_multiplier = int(strategy.get("contract_multiplier") or 1)
     price_grid = [float(x) for x in _as_list(price_shocks)]
     iv_grid = [float(x) for x in _as_list(iv_shocks)]

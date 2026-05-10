@@ -17,12 +17,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.options_cli_common import resolve_output_dir  # noqa: E402
 from tradingagents.options.research_pack import (  # noqa: E402
     build_option_research_pack,
     build_option_research_pack_hermes_cron_spec,
 )
-
-DEFAULT_OUTPUT_DIR = Path("/mnt/e/cautious_twinkle/outputs/tradingagents/options/research_packs")
 
 
 def _safe_part(value: Any) -> str:
@@ -63,7 +62,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--target", dest="delivery_target", default="feishu", help="Dry-run Feishu/Hermes target label")
     parser.add_argument("--cron-schedule", default="0 8 * * 1-5", help="Schedule used when printing a Hermes no-agent cron spec")
-    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("--output-dir", default=None, help="Artifact directory; defaults to TRADINGAGENTS_OPTIONS_RESEARCH_PACKS_OUTPUT_DIR or TRADINGAGENTS_OPTIONS_OUTPUT_ROOT/research_packs")
     parser.add_argument(
         "--stdout",
         choices=["summary-json", "markdown", "hermes-cron-spec", "none"],
@@ -98,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
         delivery_target=args.delivery_target,
     )
 
-    output_dir = Path(args.output_dir).expanduser()
+    output_dir = resolve_output_dir(args.output_dir, kind="research_packs")
     output_dir.mkdir(parents=True, exist_ok=True)
     pack_path, markdown_path, payload_path = _artifact_paths(output_dir, pack)
 

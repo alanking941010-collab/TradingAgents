@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from scripts.options_cli_common import run_subprocess_checked
 from tests.test_options_phase12_replay import _insert_review_day
 
 
@@ -101,10 +101,9 @@ def test_option_hermes_cron_delivery_spec_tool_returns_parseable_json(shfe_optio
 
 def test_deliver_option_strategy_report_cli_prints_markdown_for_hermes_cron(shfe_options_db, tmp_path):
     _insert_review_day(shfe_options_db)
-    env = {"TRADINGAGENTS_SHFE_OPTIONS_DB": str(shfe_options_db)}
     output_dir = tmp_path / "out"
 
-    proc = subprocess.run(
+    proc = run_subprocess_checked(
         [
             sys.executable,
             "scripts/deliver_option_strategy_report.py",
@@ -127,12 +126,8 @@ def test_deliver_option_strategy_report_cli_prints_markdown_for_hermes_cron(shfe
             "message",
         ],
         cwd=Path(__file__).resolve().parents[1],
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        env_extra={"TRADINGAGENTS_SHFE_OPTIONS_DB": str(shfe_options_db)},
         timeout=30,
-        check=True,
     )
 
     assert proc.stdout.startswith("# CU bull_call_spread option strategy report")

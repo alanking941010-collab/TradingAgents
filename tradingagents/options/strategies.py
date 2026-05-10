@@ -13,7 +13,7 @@ from tradingagents.options.analytics import DEFAULT_RISK_FREE_RATE, analyze_opti
 from tradingagents.options.contract_specs import contract_multiplier_for_product, multiplier_unit_for_product
 from tradingagents.options.data_loader import format_iso
 from tradingagents.options.models import EnrichedOptionQuote
-
+from tradingagents.options.schemas import validate_strategy_candidate
 
 _SUPPORTED_STRATEGIES = {
     "bull_call_spread",
@@ -549,6 +549,7 @@ def build_option_strategy_candidate(
     risk_budget_cash: float | None = None,
     min_credit_pct_of_wing_width: float | None = None,
     max_bid_ask_spread_pct: float | None = None,
+    analysis_context: Any | None = None,
 ) -> dict[str, Any]:
     """Build one deterministic, auditable option strategy candidate.
 
@@ -560,7 +561,11 @@ def build_option_strategy_candidate(
     if normalized_strategy not in _SUPPORTED_STRATEGIES:
         raise ValueError(f"Unsupported strategy_type={strategy_type!r}; supported={sorted(_SUPPORTED_STRATEGIES)}")
 
-    report = analyze_option_chain(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
+    report = (
+        analysis_context.get_analysis(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
+        if analysis_context is not None
+        else analyze_option_chain(symbol, trade_date=trade_date, expiry=expiry, risk_free_rate=risk_free_rate)
+    )
     contract_multiplier = contract_multiplier_for_product(report.product)
     multiplier_unit = multiplier_unit_for_product(report.product)
     rows = _rows_for_expiry(report.options, expiry)
@@ -601,7 +606,7 @@ def build_option_strategy_candidate(
         execution_no_trade_reasons=credit_execution.get("no_trade_reasons") if credit_execution else None,
     )
     maturity = legs[0]["expiry"] if legs else None
-    return {
+    payload = {
         "strategy_type": normalized_strategy,
         "product": report.product,
         "trade_date": report.trade_date,
@@ -635,3 +640,4 @@ def build_option_strategy_candidate(
             "execution_note": "Candidate is analytical only; verify live bid/ask, slippage, margin, and exchange rules before trading.",
         },
     }
+    return validate_strategy_candidate(payload)

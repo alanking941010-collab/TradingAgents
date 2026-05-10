@@ -18,9 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.options_cli_common import resolve_output_dir  # noqa: E402
 from tradingagents.options.reports import build_feishu_delivery_payload, build_option_strategy_report  # noqa: E402
-
-DEFAULT_OUTPUT_DIR = Path("/mnt/e/cautious_twinkle/outputs/tradingagents/options/reports")
 
 
 def _safe_part(value: Any) -> str:
@@ -46,7 +45,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--risk-budget-cash", type=float, default=None)
     parser.add_argument("--target", default="feishu", help="Hermes/Feishu target, e.g. feishu:oc_xxx")
-    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("--output-dir", default=None, help="Artifact directory; defaults to TRADINGAGENTS_OPTIONS_REPORTS_OUTPUT_DIR or TRADINGAGENTS_OPTIONS_OUTPUT_ROOT/reports")
     parser.add_argument("--dry-run", action="store_true", help="Mark the payload as dry-run rather than cron-deliverable.")
     parser.add_argument(
         "--stdout",
@@ -69,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     payload = build_feishu_delivery_payload(report, target=args.target, dry_run=args.dry_run)
 
-    output_dir = Path(args.output_dir).expanduser()
+    output_dir = resolve_output_dir(args.output_dir, kind="reports")
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = f"{_safe_part(report['product'])}_{_safe_part(report['trade_date'])}_{_safe_part(report['strategy_type'])}"
     report_path = output_dir / f"{stem}_report.json"
