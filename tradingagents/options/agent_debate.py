@@ -94,6 +94,54 @@ def _completed_sections(debate: dict[str, Any]) -> list[str]:
     return [_text(section.get("title")) for section in debate.get("sections") or [] if _text(section.get("title"))]
 
 
+_REQUIRED_CHECKPOINT_SECTIONS = (
+    "Market Analyst",
+    "Bull/Bear Research Debate",
+    "Research Manager",
+    "Trader",
+    "Risk Debate",
+    "Portfolio Manager",
+)
+
+
+def _checkpoint_completion_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return whether a partial checkpoint is complete enough for reports."""
+    completed = set(payload.get("completed_sections") or _completed_sections(payload))
+    missing = [title for title in _REQUIRED_CHECKPOINT_SECTIONS if title not in completed]
+    final_decision = _text(payload.get("final_decision"))
+    if not final_decision:
+        for section in payload.get("sections") or []:
+            if section.get("title") == "Portfolio Manager":
+                final_decision = _text(section.get("content"))
+                break
+    return {
+        "complete": not missing and bool(final_decision),
+        "required_sections": list(_REQUIRED_CHECKPOINT_SECTIONS),
+        "missing_required_sections": missing,
+        "checkpoint_final_decision": final_decision,
+    }
+
+
+def _checkpoint_complete_debate(*, partial_checkpoint: dict[str, Any], symbol: str | None, trade_date: str | None) -> dict[str, Any]:
+    """Promote a timed-out worker's complete checkpoint to a reportable result."""
+    final_decision = _text(partial_checkpoint.get("checkpoint_final_decision") or partial_checkpoint.get("final_decision"))
+    note = (
+        "Live graph worker reached the timeout boundary after checkpointing all required "
+        "TradingAgents sections. The graph finalization/return path did not complete in time, "
+        "so this report uses the latest complete checkpoint instead of labeling the debate as a pure timeout."
+    )
+    return {
+        "debate_type": "tradingagents_graph_debate",
+        "source": "tradingagents_graph_live_checkpoint_complete",
+        "status": "checkpoint_complete",
+        "symbol": symbol,
+        "trade_date": trade_date,
+        "final_decision": final_decision,
+        "sections": [{"title": "Live Graph Checkpoint Complete", "content": note}] + list(partial_checkpoint.get("sections") or []),
+        "partial_checkpoint": partial_checkpoint,
+    }
+
+
 def write_agent_debate_checkpoint(
     checkpoint_dir: str | Path | None,
     *,
@@ -144,6 +192,7 @@ def load_agent_debate_checkpoint(
     event_count = 0
     if events_path.exists():
         event_count = sum(1 for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip())
+    completion = _checkpoint_completion_fields(payload)
     return {
         "available": True,
         "checkpoint_path": str(checkpoint_path),
@@ -155,6 +204,7 @@ def load_agent_debate_checkpoint(
         "sections": payload.get("sections") or [],
         "completed_sections": payload.get("completed_sections") or _completed_sections(payload),
         "last_progress_event": payload.get("last_progress_event"),
+        **completion,
     }
 
 
@@ -500,6 +550,12 @@ def build_live_agent_debate_provider(
                 symbol=pack.get("product"),
                 trade_date=pack.get("trade_date"),
             )
+            if partial_checkpoint.get("complete"):
+                return _checkpoint_complete_debate(
+                    partial_checkpoint=partial_checkpoint,
+                    symbol=pack.get("product"),
+                    trade_date=pack.get("trade_date"),
+                )
             partial_note = ""
             if partial_checkpoint.get("available"):
                 partial_note = (
@@ -530,6 +586,12 @@ def build_live_agent_debate_provider(
                 symbol=pack.get("product"),
                 trade_date=pack.get("trade_date"),
             )
+            if partial_checkpoint.get("complete"):
+                return _checkpoint_complete_debate(
+                    partial_checkpoint=partial_checkpoint,
+                    symbol=pack.get("product"),
+                    trade_date=pack.get("trade_date"),
+                )
             message = (
                 f"TradingAgents full graph live debate 失败：{type(exc).__name__}: {exc}. "
                 "已保留确定性期权研究包；本节不是交易指令。"
